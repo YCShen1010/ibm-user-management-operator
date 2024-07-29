@@ -24,7 +24,7 @@ metadata:
     categories: Security
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
-    createdAt: "2024-07-24T13:53:59Z"
+    createdAt: "2024-07-29T18:37:34Z"
     description: Operator for managing deployment of account-iam service.
     olm.skipRange: <0.0.0
     operators.operatorframework.io/builder: operator-sdk-v1.34.1
@@ -224,6 +224,15 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - operator.ibm.com
+          resources:
+          - operandrequests
+          verbs:
+          - create
+          - get
+          - list
+          - watch
         - apiGroups:
           - operators.coreos.com
           resources:

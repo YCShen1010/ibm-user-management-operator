@@ -75,7 +75,7 @@ configure-dev:
 	$(eval IMG := $(DEV_IMG))
 	$(eval BUNDLE_IMG := $(DEV_BUNDLE_IMG))
 	$(eval CATALOG_IMG := $(DEV_CATALOG_IMG))
-	$(MAKE) bundle
+	$(MAKE) bundle IMG=$(IMG)
 	
 ##@ Development Build
 .PHONY: docker-build-dev

@@ -37,6 +37,7 @@ import (
 
 	operatorv1alpha1 "github.com/IBM/ibm-user-management-operator/api/v1alpha1"
 	"github.com/IBM/ibm-user-management-operator/internal/controller"
+	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
 	wlapi "github.com/WASdev/websphere-liberty-operator/api/v1"
 	olmapi "github.com/operator-framework/api/pkg/operators/v1"
 	//+kubebuilder:scaffold:imports
@@ -51,6 +52,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(olmapi.AddToScheme(scheme))
 	utilruntime.Must(wlapi.AddToScheme(scheme))
+	utilruntime.Must(odlm.AddToScheme(scheme))
 
 	utilruntime.Must(operatorv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ocproute.AddToScheme(scheme))

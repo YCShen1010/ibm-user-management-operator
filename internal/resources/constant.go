@@ -17,12 +17,26 @@
 package resources
 
 const (
-	// EDBAPIGroupVersion is the api group version of Cluster
-	EDBAPIGroupVersion = "postgresql.k8s.enterprisedb.io/v1"
-	// EDBClusterKind is the kind of Cluster
-	EDBClusterKind = "Cluster"
+	// Default User Management CR
+	UserMgmtCR = "AccountIAM"
+	// Default OperandRequest
+	UserMgmtOpreq = "user-management-request"
+	// OpreqKind is the kind of OperandConfig
+	OpreqKind = "OperandRequest"
+	// OperandStatusRedy is the Ready status of Operand
+	OperandStatusRedy = "Ready"
+	// WebSphere is the name of WebSphere Operator
+	WebSpherePackage = "ibm-websphere-liberty"
 	// WebSphereAPIGroupVersion is the api group version of WebSphereLibertyApplication
 	WebSphereAPIGroupVersion = "liberty.websphere.ibm.com/v1"
 	// WebSphereKind is the kind of WebSphereLibertyApplication
 	WebSphereKind = "WebSphereLibertyApplication"
+	// IMPackage is the name of IM Operator
+	IMPackage = "ibm-im-operator"
+	// EDBAPIGroupVersion is the api group version of Cluster
+	EDBAPIGroupVersion = "postgresql.k8s.enterprisedb.io/v1"
+	// EDBClusterKind is the kind of Cluster
+	EDBClusterKind = "Cluster"
+	// IMConfigJob is the name of the IM configuration job
+	IMConfigJob = "mcsp-im-config-job"
 )

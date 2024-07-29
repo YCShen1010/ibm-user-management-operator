@@ -176,6 +176,15 @@ rules:
   - patch
   - update
 - apiGroups:
+  - operator.ibm.com
+  resources:
+  - operandrequests
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
   - operators.coreos.com
   resources:
   - operatorgroups
