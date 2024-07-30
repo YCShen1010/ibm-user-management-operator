@@ -26,6 +26,7 @@ metadata:
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
     createdAt: "2024-07-29T18:37:34Z"
     description: Operator for managing deployment of account-iam service.
+    nss.operator.ibm.com/managed-operators: ibm-user-management-operator
     olm.skipRange: <0.0.0
     operators.operatorframework.io/builder: operator-sdk-v1.34.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
@@ -310,6 +311,11 @@ spec:
                 command:
                 - /manager
                 env:
+                - name: OPERATOR_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      apiVersion: v1
+                      fieldPath: metadata.namespace
                 - name: WATCH_NAMESPACE
                   valueFrom:
                     fieldRef:

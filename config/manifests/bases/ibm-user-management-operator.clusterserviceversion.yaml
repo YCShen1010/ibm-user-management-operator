@@ -8,6 +8,7 @@ metadata:
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
     description: Operator for managing deployment of account-iam service.
+    nss.operator.ibm.com/managed-operators: ibm-user-management-operator
     olm.skipRange: <0.0.0
     support: IBM
   labels:

@@ -69,10 +69,15 @@ spec:
       - command:
         - /manager
         env:
+        - name: OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:
-              fieldPath: metadata.namespace
+              fieldPath: metadata.annotations['olm.targetNamespaces']
         - name: OPERATOR_NAME
           value: ibm-user-management-operator
         - name: MCSP_UTILS_IMAGE

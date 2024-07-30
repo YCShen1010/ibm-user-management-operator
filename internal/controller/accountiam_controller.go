@@ -42,6 +42,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,8 +60,9 @@ import (
 // AccountIAMReconciler reconciles a AccountIAM object
 type AccountIAMReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Config *rest.Config
+	Scheme   *runtime.Scheme
+	Config   *rest.Config
+	Recorder record.EventRecorder
 }
 
 type BootstrapSecret struct {
