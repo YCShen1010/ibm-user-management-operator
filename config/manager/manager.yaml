@@ -73,6 +73,18 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: OPERATOR_NAME
+          value: ibm-user-management-operator
+        - name: MCSP_UTILS_IMAGE
+          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/mcsp-utils:latest
+        - name: ACCOUNT_IAM_APP_IMAGE
+          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/account-iam:20240704015703-development-a5addf36327e2d6b43cb0a96d1e34f707d3433e0
+        - name: MCSP_IM_CONFIG_JOB_IMAGE
+          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/mcsp-im-config-job:latest
+        - name: ACCOUNT_IAM_UI_API_SERVICE_IMAGE
+          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/sgrube/api_service:cs
+        - name: ACCOUNT_IAM_UI_INSTANCE_SERVICE_IMAGE
+          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/sgrube/instance_service:cs
         args:
         - --leader-elect
         image: controller:latest

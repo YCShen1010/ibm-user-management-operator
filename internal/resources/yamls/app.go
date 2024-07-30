@@ -231,7 +231,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: dbmigrate
-          image: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/ibmcom/account-iam-amd64:20240722
+          image: ACCOUNT_IAM_APP_IMAGE
           envFrom:
             - secretRef:
                 name: account-iam-database-secret
@@ -304,7 +304,7 @@ spec:
   manageTLS: true
   networkPolicy:
     disable: true
-  applicationImage: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/ibmcom/account-iam-amd64:20240722
+  applicationImage: ACCOUNT_IAM_APP_IMAGE
   pullPolicy: Always
   replicas: 
   probes:

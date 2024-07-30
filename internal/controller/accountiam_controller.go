@@ -458,7 +458,8 @@ func (r *AccountIAMReconciler) cleanJob(ctx context.Context, ns string) error {
 	}
 
 	object = &unstructured.Unstructured{}
-	manifest = []byte(res.DB_BOOTSTRAP_JOB)
+	resource := replaceImages(res.DB_BOOTSTRAP_JOB)
+	manifest = []byte(resource)
 	if err := yaml.Unmarshal(manifest, object); err != nil {
 		return err
 	}
@@ -482,7 +483,8 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	// TODO: will need to find a better place to initialize the database
 	klog.Infof("Creating DB Bootstrap Job")
 	object := &unstructured.Unstructured{}
-	manifest := []byte(res.DB_BOOTSTRAP_JOB)
+	resource := replaceImages(res.DB_BOOTSTRAP_JOB)
+	manifest := []byte(resource)
 	if err := yaml.Unmarshal(manifest, object); err != nil {
 		return err
 	}
@@ -525,6 +527,7 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	staticYamls := append(res.APP_STATIC_YAMLS, res.CertRotationYamls...)
 	for _, v := range staticYamls {
 		object := &unstructured.Unstructured{}
+		v = replaceImages(v)
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
 			return err
@@ -584,6 +587,7 @@ func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operato
 		buffer.Reset()
 
 		// Parse the manifest template and execute it with the provided bootstrap data
+		manifest = replaceImages(manifest)
 		t := template.Must(template.New("template resrouces").Parse(manifest))
 		if err := t.Execute(&buffer, bootstrapData); err != nil {
 			return err
@@ -795,6 +799,7 @@ func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, instance *operat
 
 	for _, v := range res.StaticYamlsUI {
 		object := &unstructured.Unstructured{}
+		v = replaceImages(v)
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
 			return err
