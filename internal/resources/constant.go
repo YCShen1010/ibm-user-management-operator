@@ -20,23 +20,47 @@ const (
 	// Default User Management CR
 	UserMgmtCR = "AccountIAM"
 	// Default OperandRequest
-	UserMgmtOpreq = "user-management-request"
+	UserMgmtOpreq = "ibm-user-management-request"
 	// OpreqKind is the kind of OperandConfig
 	OpreqKind = "OperandRequest"
-	// OperandStatusRedy is the Ready status of Operand
-	OperandStatusRedy = "Ready"
 	// WebSphere is the name of WebSphere Operator
 	WebSpherePackage = "ibm-websphere-liberty"
 	// WebSphereAPIGroupVersion is the api group version of WebSphereLibertyApplication
 	WebSphereAPIGroupVersion = "liberty.websphere.ibm.com/v1"
 	// WebSphereKind is the kind of WebSphereLibertyApplication
 	WebSphereKind = "WebSphereLibertyApplication"
+	// RedisOperator is the subscription name of Redis Operator
+	RedisOperator = "ibm-redis-cp-operator"
+	// Rediscp is the name of Redis CR
+	Rediscp = "account-iam-ui-redis"
+	// RedisKind is the kind of Redis
+	RedisKind = "Rediscp"
+	// RedisAPIGroup is the api group of Redis
+	RedisAPIGroup = "redis.ibm.com"
+	// RedisVersion is the version of Redis
+	RedisVersion = "v1"
+	//RedisURLssl
+	RedisURLssl = "redis-url-ssl"
+	// RedisURL is the Certificate of Redis
+	RedisCert = "account-iam-ui-redis-cert"
+	// RedisCertKey is the key of Redis CA Certificate
+	RedisCertKey = "cacertb64.pem"
+	// OpreqPhaseRunning is the Running status of Operand
+	OpreqPhaseRunning = "Running"
+	// OperandStatusReady is the Ready status of Operand
+	OperandStatusReady = "Ready"
+	// OperandStatusComp is the Completed status of Operand
+	OperandStatusComp = "Completed"
 	// IMPackage is the name of IM Operator
 	IMPackage = "ibm-im-operator"
-	// EDBAPIGroupVersion is the api group version of Cluster
-	EDBAPIGroupVersion = "postgresql.k8s.enterprisedb.io/v1"
 	// EDBClusterKind is the kind of Cluster
 	EDBClusterKind = "Cluster"
+	// EDBAPIGroupVersion is the api group version of Cluster
+	EDBAPIGroupVersion = "postgresql.k8s.enterprisedb.io/v1"
 	// IMConfigJob is the name of the IM configuration job
 	IMConfigJob = "mcsp-im-config-job"
+	// IMAPISecret is the secret where the IM API key is stored
+	IMAPISecret = "mcsp-im-integration-api-key"
+	// IMAPIKey is the key in the secret.data where the IM API key is stored
+	IMAPIKey = "API_KEY"
 )

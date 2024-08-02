@@ -206,6 +206,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - redis.ibm.com
+  resources:
+  - rediscps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - route.openshift.io
   resources:
   - routes

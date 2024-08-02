@@ -24,7 +24,7 @@ metadata:
     categories: Security
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
-    createdAt: "2024-07-29T18:37:34Z"
+    createdAt: "2024-07-31T20:52:03Z"
     description: Operator for managing deployment of account-iam service.
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
     olm.skipRange: <0.0.0
@@ -247,6 +247,18 @@ spec:
           resources:
           - rolebindings
           - roles
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - redis.ibm.com
+          resources:
+          - rediscps
           verbs:
           - create
           - delete
