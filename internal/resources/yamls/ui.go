@@ -193,8 +193,9 @@ stringData:
     INSTANCE_MANAGEMENT_BASE_URL=https://{{ .InstanceManagementHostname }}
     APOLLO_CLIENT_INSTANCE_API_URL=https://{{ .InstanceManagementHostname }}/api/graphql/instance
     IM_ID_MGMT={{ .IMIDMgmt}}
-    ONPREM_ACCOUNT={{ .OnPremAccount}}
-    CS_IDP_URL={{ .CSIDPURL}}
+    ONPREM_ACCOUNT={{ .OnPremAccount }}
+    ONPREM_INSTANCE={{ .OnPremInstance }}
+    CS_IDP_URL={{ .CSIDPURL }}
 `
 
 var IngressAPI = `

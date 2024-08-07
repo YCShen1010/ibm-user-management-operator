@@ -123,6 +123,7 @@ type UIBootstrapTemplate struct {
 	IMIDMgmt                    string
 	CSIDPURL                    string
 	OnPremAccount               string
+	OnPremInstance              string
 }
 
 var UIBootstrapData UIBootstrapTemplate
@@ -133,7 +134,7 @@ var UIBootstrapData UIBootstrapTemplate
 //+kubebuilder:rbac:groups=operator.ibm.com,resources=operandrequests,verbs=get;list;watch;create
 //+kubebuilder:rbac:groups=operators.coreos.com,resources=operatorgroups,verbs=get;list;watch
 //+kubebuilder:rbac:groups=redis.ibm.com,resources=rediscps,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch
+//+kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
@@ -844,7 +845,8 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		IssuerBaseURL:              concat(cpconsole, "/idprovider/v1/auth"),
 		IMIDMgmt:                   cpconsole,
 		CSIDPURL:                   concat(cpconsole, "/common-nav/identity-access/realms"),
-		OnPremAccount:              "mcsp-im-intgn-account",
+		OnPremAccount:              "default-account",
+		OnPremInstance:             "default-service",
 	}
 
 	return nil
@@ -871,7 +873,8 @@ func (r *AccountIAMReconciler) createOrUpdate(ctx context.Context, obj *unstruct
 		}
 	}
 
-	if err == nil {
+	// if the obj is Job, skip the update
+	if obj.GetKind() == "Job" {
 		return nil
 	}
 

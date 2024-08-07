@@ -222,8 +222,12 @@ rules:
   resources:
   - routes
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - security.openshift.io
