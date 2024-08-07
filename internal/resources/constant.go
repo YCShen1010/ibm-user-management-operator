@@ -60,7 +60,7 @@ const (
 	// IMConfigJob is the name of the IM configuration job
 	IMConfigJob = "mcsp-im-config-job"
 	// IMAPISecret is the secret where the IM API key is stored
-	IMAPISecret = "mcsp-im-integration-api-key"
+	IMAPISecret = "mcsp-im-integration-details"
 	// IMAPIKey is the key in the secret.data where the IM API key is stored
 	IMAPIKey = "API_KEY"
 )

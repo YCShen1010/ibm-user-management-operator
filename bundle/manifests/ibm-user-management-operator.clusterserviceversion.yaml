@@ -24,7 +24,7 @@ metadata:
     categories: Security
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
-    createdAt: "2024-07-31T20:52:03Z"
+    createdAt: "2024-08-07T12:21:51Z"
     description: Operator for managing deployment of account-iam service.
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
     olm.skipRange: <0.0.0
@@ -341,9 +341,9 @@ spec:
                 - name: MCSP_IM_CONFIG_JOB_IMAGE
                   value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/mcsp-im-config-job:latest
                 - name: ACCOUNT_IAM_UI_API_SERVICE_IMAGE
-                  value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/sgrube/api_service:cs
+                  value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/api_service:1.0.0
                 - name: ACCOUNT_IAM_UI_INSTANCE_SERVICE_IMAGE
-                  value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/sgrube/instance_service:cs
+                  value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/instance_management_service:1.0.0
                 image: icr.io/cpopen/ibm-user-management-operator:latest
                 imagePullPolicy: Always
                 livenessProbe:

@@ -38,10 +38,12 @@ spec:
             value: debug
           - name: NAMESPACE
             value: {{ .AccountIAMNamespace }}
-          - name: IM_HOST_URL
-            value: {{ .IAMHOSTURL }}
-          - name: ACCOUNT_IAM_URL
+          - name: IM_HOST_BASE_URL
+            value: {{ .IAMHostURL }}
+          - name: ACCOUNT_IAM_BASE_URL
             value: {{ .AccountIAMURL }}
+          - name: ACCOUNT_IAM_CONSOLE_BASE_URL
+            value: {{ .AccountIAMHostURL }}
       serviceAccountName: mcsp-im-config-sa
       restartPolicy: OnFailure
 `

@@ -87,9 +87,9 @@ spec:
         - name: MCSP_IM_CONFIG_JOB_IMAGE
           value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/mcsp-im-config-job:latest
         - name: ACCOUNT_IAM_UI_API_SERVICE_IMAGE
-          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/sgrube/api_service:cs
+          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/api_service:1.0.0
         - name: ACCOUNT_IAM_UI_INSTANCE_SERVICE_IMAGE
-          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-scratch-docker-local/sgrube/instance_service:cs
+          value: docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-integration-docker-local/ibmcom/instance_management_service:1.0.0
         args:
         - --leader-elect
         image: controller:latest
