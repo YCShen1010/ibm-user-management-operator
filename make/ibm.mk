@@ -102,8 +102,8 @@ docker-build-prod: docker-build
 
 .PHONY: docker-build-push-prod
 docker-build-push-prod: docker-build-prod docker-push
-	$(CONTAINER_TOOL) tag $(IMG) $(IMAGE_TAG_BASE):v$(VERSION)
-	$(MAKE) docker-push IMG=$(IMAGE_TAG_BASE):v$(VERSION)
+	$(CONTAINER_TOOL) tag $(IMG) $(IMAGE_TAG_BASE):$(VERSION)
+	$(MAKE) docker-push IMG=$(IMAGE_TAG_BASE):$(VERSION)
 
 clean-before-commit:
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(ICR_IMAGE_TAG_BASE):latest
