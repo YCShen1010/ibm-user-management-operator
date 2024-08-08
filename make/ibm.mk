@@ -1,7 +1,7 @@
 # Override default variable values from top level Makefile #
 
-VERSION ?= 0.0.1
-CHANNELS ?= v0.1
+VERSION ?= 1.0.0
+CHANNELS ?= v1.0
 
 # IBM specific # 
 
