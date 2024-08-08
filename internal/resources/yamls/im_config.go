@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: mcsp-im-config-job
-        image: MCSP_IM_CONFIG_JOB_IMAGE
+        image: RELATED_IMAGE_MCSP_IM_CONFIG_JOB
         command: ["./mcsp-im-config-job"]
         imagePullPolicy: Always
         securityContext:

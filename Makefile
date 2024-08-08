@@ -56,8 +56,7 @@ OPERATOR_SDK_VERSION ?= v1.34.1
 IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.3
-# CSV_PATH refers to the path to ibm-user-management-operator csv
-CSV_PATH=bundle/manifests/ibm-user-management-operator.clusterserviceversion.yaml
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -264,8 +263,6 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
-	$(YQ) eval -i '.metadata.annotations."olm.skipRange" = "<${VERSION}"' ${CSV_PATH}
-	$(YQ) eval-all -i '.spec.relatedImages = load("config/manifests/bases/ibm-user-management-operator.clusterserviceversion.yaml").spec.relatedImages' bundle/manifests/ibm-user-management-operator.clusterserviceversion.yaml
 
 
 .PHONY: bundle-build

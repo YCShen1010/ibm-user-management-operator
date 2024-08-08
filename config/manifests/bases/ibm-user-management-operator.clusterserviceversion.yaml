@@ -8,6 +8,7 @@ metadata:
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
     description: Operator for managing deployment of account-iam service.
+    features.operators.openshift.io/disconnected: "true"
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
     olm.skipRange: <1.0.0
     support: IBM
@@ -55,17 +56,7 @@ spec:
   - email: support@ibm.com
     name: IBM Support
   maturity: alpha
+  minKubeVersion: 1.19.0
   provider:
     name: IBM
-  relatedImages:
-  - name: MCSP_UTILS_IMAGE
-    value: icr.io/cpopen/cpfs/mcsp-utils:1.0.0
-  - name: ACCOUNT_IAM_APP_IMAGE
-    value: icr.io/cpopen/cpfs/account-iam:1.0.0
-  - name: MCSP_IM_CONFIG_JOB_IMAGE
-    value: icr.io/cpopen/cpfs/mcsp-im-config-job:1.0.0 
-  - name: ACCOUNT_IAM_UI_API_SERVICE_IMAGE
-    value: icr.io/cpopen/cpfs/api_service:1.0.0
-  - name: ACCOUNT_IAM_UI_INSTANCE_SERVICE_IMAGE
-    value: icr.io/cpopen/cpfs/instance_management_service:1.0.0
   version: 1.0.0

@@ -41,14 +41,14 @@ install-docker-buildx: require-local-bin-dir require-cli-plugins-dir
 .PHONY: yq
 yq:
 ifeq (,$(wildcard $(YQ)))
-	ifeq (, $(shell which yq 2>/dev/null))
-		@{ \
-		set -e ;\
-		mkdir -p $(dir $(YQ)) ;\
-		curl -sSLo $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$(LOCAL_OS)_$(LOCAL_ARCH) ;\
-		chmod +x $(YQ) ;\
-		}
-	else
-		YQ = $(shell which yq)
-	endif
+ifeq (, $(shell which yq 2>/dev/null))
+	@{ \
+	set -e ;\
+	mkdir -p $(dir $(YQ)) ;\
+	curl -sSLo $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$(LOCAL_OS)_$(LOCAL_ARCH) ;\
+	chmod +x $(YQ) ;\
+	}
+else
+YQ = $(shell which yq)
+endif
 endif
