@@ -14,8 +14,8 @@ var TemplateYamlsUI = []string{
 	CertUI,
 	ConfigUI,
 	SecretUI,
-	IngressAPI,
-	IngressInstance,
+	RouteInstance,
+	RouteAPIInstance,
 }
 
 var IssuerSS = `
@@ -198,111 +198,50 @@ stringData:
     CS_IDP_URL={{ .CSIDPURL }}
 `
 
-var IngressAPI = `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+var RouteInstance = `
+apiVersion: route.openshift.io/v1
+kind: Route
 metadata:
-  name: 'account-iam-ui-ingress-onprem'
+  name: 'account-iam-ui-instance-onprem'
   annotations:
-    route.openshift.io/termination: 'reencrypt'
     argocd.argoproj.io/sync-wave: '8'
-    haproxy.router.openshift.io/timeout: '30m'
+    haproxy.router.openshift.io/timeout: 30m
 spec:
+  host: {{ .InstanceManagementHostname }}
+  to:
+    kind: Service
+    name: 'account-iam-ui-instance-service-onprem'
+    weight: 100
+  port:
+    targetPort: https
   tls:
-    - {}
-  rules:
-    - host: {{ .Hostname }}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-landing-service-onprem'
-                port:
-                  number: 3004
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-api-service-onprem'
-                port:
-                  number: 3000
-          - path: /auth
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-auth-service-onprem'
-                port:
-                  number: 3001
-          - path: /account/reg/us-en/info
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-onboarding-service-onprem'
-                port:
-                  number: 3002
-          - path: /account/urxstatic
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-onboarding-service-onprem'
-                port:
-                  number: 3002
-          - path: /tenant
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-onboarding-service-onprem'
-                port:
-                  number: 3002
-          - path: /account
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-account-service-onprem'
-                port:
-                  number: 3003
-          - path: /landing
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-landing-service-onprem'
-                port:
-                  number: 3004
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  path: /instance
+  wildcardPolicy: None
 `
 
-var IngressInstance = `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+var RouteAPIInstance = `
+apiVersion: route.openshift.io/v1
+kind: Route
 metadata:
-  name: 'account-iam-ui-instance-ingress-onprem'
+  name: 'account-iam-ui-api-instance-onprem'
   annotations:
-    route.openshift.io/termination: 'reencrypt'
     argocd.argoproj.io/sync-wave: '8'
-    haproxy.router.openshift.io/timeout: '30m'
+    haproxy.router.openshift.io/timeout: 30m
 spec:
+  host: {{ .InstanceManagementHostname }}
+  to:
+    kind: Service
+    name: 'account-iam-ui-api-service-onprem'
+    weight: 100
+  port:
+    targetPort: https
   tls:
-    - {}
-  rules:
-    - host: {{ .InstanceManagementHostname }}
-      http:
-        paths:
-          - path: /instance
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-instance-service-onprem'
-                port:
-                  number: 3005
-          - path: /api/graphql/instance
-            pathType: Prefix
-            backend:
-              service:
-                name: 'account-iam-ui-api-service-onprem'
-                port:
-                  number: 3000
-
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  path: /api/graphql/instance
+  wildcardPolicy: None
 `
 
 var DeploymentAPI = `

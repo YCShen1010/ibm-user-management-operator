@@ -104,7 +104,8 @@ data:
 type: Opaque
 `
 
-const INGRESS = `kind: NetworkPolicy
+const INGRESS = `
+kind: NetworkPolicy
 apiVersion: networking.k8s.io/v1
 metadata:
   name: account-iam-ingress-allow
