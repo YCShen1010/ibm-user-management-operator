@@ -264,8 +264,7 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
-	$(YQ) eval -i '.metadata.annotations."olm.skipRange" = ">=1.0.0 <${RELEASE_VERSION}"' ${CSV_PATH}
-	$(YQ) eval -i '.spec.webhookdefinitions[0].deploymentName = "ibm-user-management-operator" | .spec.webhookdefinitions[1].deploymentName = "ibm-user-management-operator"' ${CSV_PATH}
+	$(YQ) eval -i '.metadata.annotations."olm.skipRange" = "<${VERSION}"' ${CSV_PATH}
 	$(YQ) eval-all -i '.spec.relatedImages = load("config/manifests/bases/ibm-user-management-operator.clusterserviceversion.yaml").spec.relatedImages' bundle/manifests/ibm-user-management-operator.clusterserviceversion.yaml
 
 

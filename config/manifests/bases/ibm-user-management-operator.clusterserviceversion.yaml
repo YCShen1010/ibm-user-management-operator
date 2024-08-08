@@ -9,9 +9,7 @@ metadata:
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
     description: Operator for managing deployment of account-iam service.
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
-    olm.skipRange: <0.0.0
-    operatorChannel: v1.0
-    operatorVersion: 1.0.0
+    olm.skipRange: <1.0.0
     support: IBM
   labels:
     operatorframework.io/arch.amd64: supported
@@ -70,4 +68,4 @@ spec:
     value: icr.io/cpopen/cpfs/api_service:1.0.0
   - name: ACCOUNT_IAM_UI_INSTANCE_SERVICE_IMAGE
     value: icr.io/cpopen/cpfs/instance_management_service:1.0.0
-  version: 0.0.0
+  version: 1.0.0

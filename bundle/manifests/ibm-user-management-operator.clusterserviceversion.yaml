@@ -27,9 +27,7 @@ metadata:
     createdAt: "2024-08-07T19:31:17Z"
     description: Operator for managing deployment of account-iam service.
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
-    olm.skipRange: ">=1.0.0 <1.1.0"
-    operatorChannel: v1.0
-    operatorVersion: 1.0.0
+    olm.skipRange: "<1.0.0"
     operators.operatorframework.io/builder: operator-sdk-v1.34.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     support: IBM
@@ -440,7 +438,7 @@ spec:
   maturity: alpha
   provider:
     name: IBM
-  version: 0.0.0
+  version: 1.0.0
   relatedImages:
   - name: MCSP_UTILS_IMAGE
     value: icr.io/cpopen/cpfs/mcsp-utils:1.0.0
