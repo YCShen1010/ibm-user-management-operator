@@ -28,7 +28,7 @@ import (
 	"text/template"
 	"time"
 
-	ocproute "github.com/openshift/api/route/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
@@ -231,12 +230,12 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 		return err
 	}
 
-	existWebsphere, err := r.CheckCRD(resources.WebSphereAPIGroupVersion, resources.WebSphereKind)
+	existWebsphere, err := CheckCRD(r.Config, resources.WebSphereAPIGroupVersion, resources.WebSphereKind)
 	if err != nil {
 		return err
 	}
 	if !existWebsphere {
-		return errors.New("missing Websphere Liberty prereq")
+		return errors.New("Missing WebSphereLibertyApplication CRD")
 	}
 
 	// Generate PG password
@@ -249,7 +248,7 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 
 	// Get cp-console route
 	klog.Info("Getting cp-console route")
-	host, err := r.getHost(ctx, "cp-console", instance.Namespace)
+	host, err := getHost(ctx, r.Client, "cp-console", instance.Namespace)
 	if err != nil {
 		return err
 	}
@@ -270,7 +269,9 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 		return err
 	}
 
-	if err := r.cleanJob(ctx, instance.Namespace); err != nil {
+	jobs := []string{resources.CreateDBJob, resources.DBMigrationJob, resources.IMConfigJob}
+	if err := r.cleanJob(ctx, jobs, instance.Namespace); err != nil {
+		klog.Errorf("Failed to clean up jobs: %v", err)
 		return err
 	}
 
@@ -329,7 +330,7 @@ func (r *AccountIAMReconciler) createOperandRequest(ctx context.Context, instanc
 func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 
 	// Check if Redis CRD exists
-	existRedis, err := r.CheckCRD(concat(resources.RedisAPIGroup, "/", resources.RedisVersion), resources.RedisKind)
+	existRedis, err := CheckCRD(r.Config, concat(resources.RedisAPIGroup, "/", resources.RedisVersion), resources.RedisKind)
 	if err != nil {
 		return err
 	}
@@ -356,56 +357,7 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 	return nil
 }
 
-// CheckCRD returns true if the given crd is existent
-func (r *AccountIAMReconciler) CheckCRD(apiGroupVersion string, kind string) (bool, error) {
-	dc := discovery.NewDiscoveryClientForConfigOrDie(r.Config)
-	exist, err := r.ResourceExists(dc, apiGroupVersion, kind)
-	if err != nil {
-		return false, err
-	}
-	if !exist {
-		return false, nil
-	}
-	return true, nil
-}
-
-// ResourceExists returns true if the given resource kind exists
-// in the given api groupversion
-func (r *AccountIAMReconciler) ResourceExists(dc discovery.DiscoveryInterface, apiGroupVersion, kind string) (bool, error) {
-	_, apiLists, err := dc.ServerGroupsAndResources()
-	if err != nil {
-		return false, err
-	}
-	for _, apiList := range apiLists {
-		if apiList.GroupVersion == apiGroupVersion {
-			for _, r := range apiList.APIResources {
-				if r.Kind == kind {
-					return true, nil
-				}
-			}
-		}
-	}
-	return false, nil
-}
-
-// Get the host of the route
-func (r *AccountIAMReconciler) getHost(ctx context.Context, name string, ns string) (string, error) {
-	// config := &corev1.ConfigMap{}
-	// if err := r.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, config); err != nil {
-	// 	klog.Errorf("Failed to get route %s in namespace %s", name, ns)
-	// 	return "", err
-	// }
-	// return config.Data["cluster_endpoint"], nil
-
-	sourceRoute := &ocproute.Route{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, sourceRoute); err != nil {
-		klog.Errorf("Failed to get route %s in namespace %s", name, ns)
-		return "", err
-	}
-	return sourceRoute.Spec.Host, nil
-}
-
-// Initialize BootstrapData with default values
+// InitBootstrapData initializes BootstrapData with default values
 func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string, pg []byte, host string) (*corev1.Secret, error) {
 
 	bootstrapsecret := &corev1.Secret{}
@@ -452,35 +404,42 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 	return bootstrapsecret, nil
 }
 
-func (r *AccountIAMReconciler) cleanJob(ctx context.Context, ns string) error {
-	object := &unstructured.Unstructured{}
-	manifest := []byte(res.DB_MIGRATION_MCSPID)
-	if err := yaml.Unmarshal(manifest, object); err != nil {
-		return err
-	}
-	object.SetNamespace(ns)
-	klog.Infof("Cleaning up job %s", object.GetName())
-	background := metav1.DeletePropagationBackground
-	if err := r.Delete(ctx, object, &client.DeleteOptions{
-		PropagationPolicy: &background,
-	}); err != nil {
-		if !k8serrors.IsNotFound(err) {
+func (r *AccountIAMReconciler) cleanJob(ctx context.Context, jobs []string, ns string) error {
+
+	for _, jobName := range jobs {
+		job := &batchv1.Job{}
+		namespacedName := types.NamespacedName{Name: jobName, Namespace: ns}
+
+		if err := r.Get(ctx, namespacedName, job); err != nil {
+			if k8serrors.IsNotFound(err) {
+				klog.Infof("Job %s not found, skipping deletion.", jobName)
+				continue
+			}
 			return err
 		}
-	}
 
-	object = &unstructured.Unstructured{}
-	resource := replaceImages(res.DB_BOOTSTRAP_JOB)
-	manifest = []byte(resource)
-	if err := yaml.Unmarshal(manifest, object); err != nil {
-		return err
-	}
-	object.SetNamespace(ns)
-	if err := r.Delete(ctx, object, &client.DeleteOptions{
-		PropagationPolicy: &background,
-	}); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return err
+		// Check if the job is completed successfully
+		jobCompleted := false
+		for _, condition := range job.Status.Conditions {
+			if condition.Type == batchv1.JobComplete && condition.Status == corev1.ConditionTrue {
+				klog.V(2).Infof("Job %s completed successfully, skipping deletion.", jobName)
+				jobCompleted = true
+				break
+			}
+		}
+
+		if jobCompleted {
+			continue
+		}
+
+		klog.Infof("Deleting incomplete job %s", jobName)
+		background := metav1.DeletePropagationBackground
+		if err := r.Delete(ctx, job, &client.DeleteOptions{
+			PropagationPolicy: &background,
+		}); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return err
+			}
 		}
 	}
 
@@ -520,16 +479,6 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	if err != nil {
 		return err
 	}
-
-	//print decodedData
-	// reflectValue := reflect.ValueOf(decodedData)
-	// reflectType := reflect.TypeOf(decodedData)
-
-	// for i := 0; i < reflectType.NumField(); i++ {
-	// 	fieldName := reflectType.Field(i).Name
-	// 	fieldValue := reflectValue.Field(i).String()
-	// 	klog.Infof("Field Name: %s, Field Value: %s", fieldName, fieldValue)
-	// }
 
 	if err := r.injectData(ctx, instance, res.APP_CONFIGS, decodedData); err != nil {
 		return err
@@ -688,7 +637,7 @@ func (r *AccountIAMReconciler) getPodName(ctx context.Context, namespace, label 
 
 func (r *AccountIAMReconciler) configIM(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 
-	host, err := r.getHost(ctx, "account-iam", instance.Namespace)
+	host, err := getHost(ctx, r.Client, "account-iam", instance.Namespace)
 	if err != nil {
 		return err
 	}

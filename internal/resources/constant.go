@@ -57,6 +57,10 @@ const (
 	EDBClusterKind = "Cluster"
 	// EDBAPIGroupVersion is the api group version of Cluster
 	EDBAPIGroupVersion = "postgresql.k8s.enterprisedb.io/v1"
+	// CreateDBJob is the name of the database creation job
+	CreateDBJob = "create-account-iam-db"
+	// DBMigrationJob is the name of the database migration job
+	DBMigrationJob = "account-iam-db-migration-mcspid"
 	// IMConfigJob is the name of the IM configuration job
 	IMConfigJob = "mcsp-im-config-job"
 	// IMAPISecret is the secret where the IM API key is stored

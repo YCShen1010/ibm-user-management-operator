@@ -11,6 +11,7 @@ import (
 
 	"github.com/IBM/ibm-user-management-operator/internal/resources"
 	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
+	ocproute "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -37,6 +40,38 @@ func NewUnstructured(group, kind, version string) *unstructured.Unstructured {
 	return u
 }
 
+// CheckCRD returns true if the given crd is existent
+func CheckCRD(config *rest.Config, apiGroupVersion string, kind string) (bool, error) {
+	dc := discovery.NewDiscoveryClientForConfigOrDie(config)
+	exist, err := ResourceExists(dc, apiGroupVersion, kind)
+	if err != nil {
+		return false, err
+	}
+	if !exist {
+		return false, nil
+	}
+	return true, nil
+}
+
+// ResourceExists returns true if the given resource kind exists
+// in the given api groupversion
+func ResourceExists(dc discovery.DiscoveryInterface, apiGroupVersion, kind string) (bool, error) {
+	_, apiLists, err := dc.ServerGroupsAndResources()
+	if err != nil {
+		return false, err
+	}
+	for _, apiList := range apiLists {
+		if apiList.GroupVersion == apiGroupVersion {
+			for _, r := range apiList.APIResources {
+				if r.Kind == kind {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
 func generatePassword(len int) ([]byte, error) {
 	random := make([]byte, len)
 	_, err := rand.Read(random)
@@ -47,6 +82,16 @@ func generatePassword(len int) ([]byte, error) {
 	encoded2 := base64.StdEncoding.EncodeToString([]byte(encoded))
 	result := []byte(encoded2)
 	return result, nil
+}
+
+// Get the host of the route
+func getHost(ctx context.Context, k8sClient client.Client, name string, ns string) (string, error) {
+	sourceRoute := &ocproute.Route{}
+	if err := k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, sourceRoute); err != nil {
+		klog.Errorf("Failed to get route %s in namespace %s", name, ns)
+		return "", err
+	}
+	return sourceRoute.Spec.Host, nil
 }
 
 func concat(s ...string) string {
