@@ -63,6 +63,10 @@ const (
 	DBMigrationJob = "account-iam-db-migration-mcspid"
 	// IMConfigJob is the name of the IM configuration job
 	IMConfigJob = "mcsp-im-config-job"
+	// IMOIDCCrendential is the secret where the IM OIDC credential is stored
+	IMOIDCCrendential = "ibm-iam-bindinfo-platform-oidc-credentials"
+	// WLPClientID is the key in the secret.data where the WLP client ID is stored
+	WLPClientID = "WLP_CLIENT_ID"
 	// IMAPISecret is the secret where the IM API key is stored
 	IMAPISecret = "mcsp-im-integration-details"
 	// IMAPIKey is the key in the secret.data where the IM API key is stored
