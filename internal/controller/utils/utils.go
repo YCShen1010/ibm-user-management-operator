@@ -106,16 +106,21 @@ func ResourceExists(dc discovery.DiscoveryInterface, apiGroupVersion, kind strin
 	return false, nil
 }
 
-func GeneratePassword(len int) ([]byte, error) {
-	random := make([]byte, len)
-	_, err := rand.Read(random)
-	if err != nil {
-		return nil, err
+// RandStrings generates series of random strings by given lengths
+func RandStrings(lengths ...int) ([][]byte, error) {
+	results := make([][]byte, len(lengths))
+
+	for i, length := range lengths {
+		random := make([]byte, length)
+		if _, err := rand.Read(random); err != nil {
+			return nil, err
+		}
+		encoded := base64.StdEncoding.EncodeToString(random)
+		encodedFinal := base64.StdEncoding.EncodeToString([]byte(encoded))
+		results[i] = []byte(encodedFinal)
 	}
-	encoded := base64.StdEncoding.EncodeToString(random)
-	encoded2 := base64.StdEncoding.EncodeToString([]byte(encoded))
-	result := []byte(encoded2)
-	return result, nil
+
+	return results, nil
 }
 
 // Get the host of the route

@@ -241,8 +241,7 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 
 	// Generate PG password
 	klog.Info("Generating PG password")
-	pgPassword, err := utils.GeneratePassword(20)
-
+	pgPassword, err := utils.RandStrings(20)
 	if err != nil {
 		return err
 	}
@@ -256,7 +255,7 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 
 	// Create bootstrap secret
 	klog.Info("Creating bootstrap secret")
-	bootstrapsecret, err := r.initBootstrapData(ctx, instance.Namespace, pgPassword, host)
+	bootstrapsecret, err := r.initBootstrapData(ctx, instance.Namespace, pgPassword[0], host)
 	if err != nil {
 		return err
 	}
@@ -368,6 +367,13 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 		}
 
 		accountIAMHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
+		clientVars, err := utils.RandStrings(8, 8)
+		if err != nil {
+			return nil, err
+		}
+		clinetID := clientVars[0]
+		clientSecret := clientVars[1]
+
 		klog.Info("Creating bootstrap secret with PG password")
 		newsecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -376,17 +382,17 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 			},
 			Data: map[string][]byte{
 				"Realm":               []byte("PrimaryRealm"),
-				"ClientID":            []byte("mcsp-id"),
-				"ClientSecret":        []byte("mcsp-secret"),
+				"ClientID":            clinetID,
+				"ClientSecret":        clientSecret,
 				"DiscoveryEndpoint":   []byte("https://" + host + "/idprovider/v1/auth/.well-known/openid-configuration"),
 				"UserValidationAPIV2": []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
-				"DefaultAUDValue":     []byte("mcsp-id"),
+				"DefaultAUDValue":     clinetID,
 				"DefaultIDPValue":     []byte("https://" + host + "/idprovider/v1/auth"),
 				"DefaultRealmValue":   []byte("PrimaryRealm"),
 				"SREMCSPGroupsToken":  []byte("mcsp-im-integration-admin"),
 				"GlobalRealmValue":    []byte("PrimaryRealm"),
 				"GlobalAccountIDP":    []byte("https://" + host + "/idprovider/v1/auth"),
-				"GlobalAccountAud":    []byte("mcsp-id"),
+				"GlobalAccountAud":    clinetID,
 				"AccountIAMNamespace": []byte(ns),
 				"PGPassword":          pg,
 				"IAMHostURL":          []byte("https://" + host),
@@ -779,11 +785,10 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		return err
 	}
 
-	SessionSecret, err := utils.GeneratePassword(48)
+	SessionSecret, err := utils.RandStrings(48)
 	if err != nil {
 		return err
 	}
-	klog.Info("SessionSecret: ", string(SessionSecret))
 
 	decodedClientID, err := base64.StdEncoding.DecodeString(BootstrapData.ClientID)
 	if err != nil {
@@ -802,7 +807,7 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		IAMGlobalAPIKey:            string(apiKey),
 		RedisHost:                  redisURlssl,
 		RedisCA:                    redisCert,
-		SessionSecret:              string(SessionSecret),
+		SessionSecret:              string(SessionSecret[0]),
 		DeploymentCloud:            "IBM_CLOUD",
 		IAMAPI:                     utils.Concat("https://account-iam-", instance.Namespace, ".apps.", domain),
 		NodeEnv:                    "production",
