@@ -384,11 +384,15 @@ spec:
                     cpu: 10m
                     memory: 64Mi
                 securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault
                   allowPrivilegeEscalation: false
                   capabilities:
                     drop:
                     - ALL
               securityContext:
+                seccompProfile:
+                  type: RuntimeDefault
                 runAsNonRoot: true
               serviceAccountName: ibm-user-management-operator-controller-manager
               terminationGracePeriodSeconds: 10
