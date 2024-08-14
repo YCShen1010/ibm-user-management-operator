@@ -76,6 +76,7 @@ stringData:
   pg_db_schema: accountiam
   pg_db_user: user_accountiam
   pg_jdbc_password_jndi: "jdbc/iamdatasource"
+  pg_ssl_mode: prefer
 data:
   pgPassword: {{ .PGPassword }}
   GLOBAL_ACCOUNT_AUD: {{ .GlobalAccountAud }}
@@ -357,10 +358,6 @@ spec:
       secret:
         secretName: account-iam-oidc-client-auth
         defaultMode: 420
-    - name: account-iam-cert-bk
-      secret:
-        secretName: account-iam-svc-tls-cm-autobackup
-        defaultMode: 420
     - name: account-iam-okd
       secret:
         secretName: account-iam-okd-auth
@@ -379,9 +376,6 @@ spec:
     - name: account-iam-oidc
       readOnly: true
       mountPath: /config/variables/oidc
-    - name: account-iam-cert-bk
-      readOnly: true
-      mountPath: /etc/x509/certs-autobackup
     - name: account-iam-okd
       readOnly: true
       mountPath: /config/variables/okd

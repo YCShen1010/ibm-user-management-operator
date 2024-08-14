@@ -510,8 +510,7 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 
 	// static manifests which do not change
 	klog.Infof("Creating MCSP static yamls")
-	staticYamls := append(res.APP_STATIC_YAMLS, res.CertRotationYamls...)
-	for _, v := range staticYamls {
+	for _, v := range res.APP_STATIC_YAMLS {
 		object := &unstructured.Unstructured{}
 		v = utils.ReplaceImages(v)
 		manifest := []byte(v)
