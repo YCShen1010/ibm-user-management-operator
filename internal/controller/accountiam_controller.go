@@ -215,6 +215,10 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 		return err
 	}
 
+	if err := r.createOperandRBAC(ctx, instance); err != nil {
+		return err
+	}
+
 	if err := utils.WaitForOperatorReady(ctx, r.Client, resources.UserMgmtOpreq, instance.Namespace); err != nil {
 		klog.Errorf("Failed to wait for all operator ready in OperandRequest %s", resources.UserMgmtOpreq)
 		return err
@@ -447,6 +451,29 @@ func (r *AccountIAMReconciler) cleanJob(ctx context.Context, jobs []string, ns s
 			if !k8serrors.IsNotFound(err) {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+// if rbac not exist, create RBAC for user-mgmt operand
+// if rbac exist, update RBAC for user-mgmt operand
+func (r *AccountIAMReconciler) createOperandRBAC(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
+	klog.Infof("Creating or updating RBAC for user-mgmt operand")
+
+	for _, v := range res.OperandRBACs {
+		object := &unstructured.Unstructured{}
+		manifest := []byte(v)
+		if err := yaml.Unmarshal(manifest, object); err != nil {
+			return err
+		}
+		object.SetNamespace(instance.Namespace)
+		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.createOrUpdate(ctx, object); err != nil {
+			return err
 		}
 	}
 

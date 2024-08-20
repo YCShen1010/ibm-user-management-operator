@@ -22,6 +22,7 @@ spec:
         - name: data-volume
           mountPath: /data
       restartPolicy: OnFailure
+      serviceAccountName: user-mgmt-operand-serviceaccount
       volumes:
       - name: psql-credentials
         secret:

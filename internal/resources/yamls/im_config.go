@@ -1,9 +1,6 @@
 package yamls
 
 var IMConfigYamls = []string{
-	IM_CONFIG_ROLE,
-	IM_CONFIG_ROLE_BINDING,
-	IM_CONFIG_SA,
 	IM_CONFIG_JOB,
 }
 
@@ -44,47 +41,6 @@ spec:
             value: {{ .AccountIAMURL }}
           - name: ACCOUNT_IAM_CONSOLE_BASE_URL
             value: {{ .AccountIAMHostURL }}
-      serviceAccountName: mcsp-im-config-sa
+      serviceAccountName: user-mgmt-operand-serviceaccount
       restartPolicy: OnFailure
-`
-
-var IM_CONFIG_SA = `
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: mcsp-im-config-sa
-  labels:
-    app: mcsp-im-config-sa
-`
-
-var IM_CONFIG_ROLE = `
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: mcsp-im-config-role
-  labels:
-    app: mcsp-im-config-role
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "configmaps", "secrets"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["create", "update", "delete"]
-`
-
-var IM_CONFIG_ROLE_BINDING = `
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: mcsp-im-config-rb
-  labels:
-    app: mcsp-im-config-rb
-subjects:
-  - kind: ServiceAccount
-    name: mcsp-im-config-sa
-roleRef:
-  kind: Role
-  name: mcsp-im-config-role
-  apiGroup: rbac.authorization.k8s.io
 `

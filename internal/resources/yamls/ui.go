@@ -411,7 +411,7 @@ spec:
                       path: tls.crt
                     - key: tls.key
                       path: tls.key
-      automountServiceAccountToken: true
+      serviceAccountName: user-mgmt-operand-serviceaccount
 `
 
 var DeploymentInstance = `
@@ -536,6 +536,6 @@ spec:
             items:
               - key: 'service-ca.crt'
                 path: ca.crt
-      automountServiceAccountToken: true
+      serviceAccountName: user-mgmt-operand-serviceaccount
 
 `
