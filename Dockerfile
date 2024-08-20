@@ -2,8 +2,6 @@
 FROM docker.io/golang:1.22 AS builder
 ARG TARGETOS
 ARG TARGETARCH
-ARG VCS_REF
-ARG VCS_URL
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -31,6 +29,9 @@ FROM docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-edge-docker-l
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
+
+ARG VCS_REF
+ARG VCS_URL
 
 LABEL org.label-schema.vendor="IBM" \
   org.label-schema.name="ibm user management operator" \
