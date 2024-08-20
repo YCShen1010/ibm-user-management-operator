@@ -7,10 +7,6 @@ var APP_SECRETS = []string{
 	MpConfig,
 }
 
-var APP_CONFIGS = []string{
-	CONFIG_JWT,
-}
-
 var APP_STATIC_YAMLS = []string{
 	INGRESS,
 	EGRESS,
@@ -187,24 +183,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 data:
+  CLOUD_INSTANCE_ID: dev
+  CLOUD_REGION: dev
   NOTIFICATION_SERVICE_ENABLED: ""
   LOCAL_TOKEN_ISSUER: https://127.0.0.1:9443/oidc/endpoint/OP
-`
-
-const CONFIG_JWT = `
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: account-iam
-  labels:
-    by-squad: mcsp-user-management
-    for-product: all
-    bcdr-candidate: t
-    component-name: iam-services
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-data:
-  jwt.suffix.issuer: {{ .DefaultIDPValue }}
 `
 
 const DB_MIGRATION_MCSPID = `

@@ -525,16 +525,6 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		return err
 	}
 
-	klog.Infof("Creating MCSP ConfigMaps")
-	decodedData, err := r.decodeData(BootstrapData)
-	if err != nil {
-		return err
-	}
-
-	if err := r.injectData(ctx, instance, res.APP_CONFIGS, decodedData); err != nil {
-		return err
-	}
-
 	// static manifests which do not change
 	klog.Infof("Creating MCSP static yamls")
 	for _, v := range res.APP_STATIC_YAMLS {
@@ -561,6 +551,11 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		return err
 	}
 	currentIssuer := idpconfig.Data["OIDC_ISSUER_URL"]
+
+	decodedData, err := r.decodeData(BootstrapData)
+	if err != nil {
+		return err
+	}
 	idpValue := decodedData.DefaultIDPValue
 
 	if currentIssuer == idpValue {
