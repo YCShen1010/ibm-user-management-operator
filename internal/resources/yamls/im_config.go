@@ -40,7 +40,7 @@ spec:
           - name: ACCOUNT_IAM_BASE_URL
             value: {{ .AccountIAMURL }}
           - name: ACCOUNT_IAM_CONSOLE_BASE_URL
-            value: {{ .AccountIAMHostURL }}
+            value: {{ .AccountIAMConsoleURL }}
       serviceAccountName: user-mgmt-operand-serviceaccount
       restartPolicy: OnFailure
 `

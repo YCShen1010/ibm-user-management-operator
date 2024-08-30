@@ -166,6 +166,16 @@ func GetSecretData(ctx context.Context, k8sClient client.Client, secretName, ns,
 	return string(data), nil
 }
 
+// indentCertificate to add indentation to each line of the certificate
+func IndentCert(cert string, indentSpaces int) string {
+	lines := strings.Split(cert, "\n")
+	indent := strings.Repeat(" ", indentSpaces)
+	for i, line := range lines {
+		lines[i] = indent + line
+	}
+	return strings.Join(lines, "\n")
+}
+
 // InsertColonInRedisURL inserts colon in the redis URL SSL
 func InsertColonInURL(redisURL string) string {
 	parts := strings.SplitN(redisURL, "@", 2)

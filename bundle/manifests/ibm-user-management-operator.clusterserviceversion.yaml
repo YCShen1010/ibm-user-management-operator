@@ -24,7 +24,7 @@ metadata:
     categories: Security
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
-    createdAt: "2024-08-08T22:21:31Z"
+    createdAt: "2024-08-27T14:04:34Z"
     description: Operator for managing deployment of account-iam service.
     features.operators.openshift.io/disconnected: "true"
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
@@ -156,18 +156,6 @@ spec:
           - coordination.k8s.io
           resources:
           - leases
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - liberty.websphere.ibm.com
-          resources:
-          - webspherelibertyapplications
           verbs:
           - create
           - delete
@@ -384,16 +372,16 @@ spec:
                     cpu: 10m
                     memory: 64Mi
                 securityContext:
-                  seccompProfile:
-                    type: RuntimeDefault
                   allowPrivilegeEscalation: false
                   capabilities:
                     drop:
                     - ALL
+                  seccompProfile:
+                    type: RuntimeDefault
               securityContext:
+                runAsNonRoot: true
                 seccompProfile:
                   type: RuntimeDefault
-                runAsNonRoot: true
               serviceAccountName: ibm-user-management-operator-controller-manager
               terminationGracePeriodSeconds: 10
       permissions:

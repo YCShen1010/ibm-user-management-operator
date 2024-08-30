@@ -62,26 +62,33 @@ type AccountIAMReconciler struct {
 
 // BootstrapSecret stores all the bootstrap secret data
 type BootstrapSecret struct {
-	Realm               string
-	ClientID            string
-	ClientSecret        string
-	DiscoveryEndpoint   string
-	PGPassword          string
-	DefaultAUDValue     string
-	DefaultIDPValue     string
-	DefaultRealmValue   string
-	SREMCSPGroupsToken  string
-	GlobalRealmValue    string
-	GlobalAccountIDP    string
-	GlobalAccountAud    string
-	UserValidationAPIV2 string
-	IAMHostURL          string
-	AccountIAMURL       string
-	AccountIAMHostURL   string
-	AccountIAMNamespace string
+	Realm                string
+	ClientID             string
+	ClientSecret         string
+	DiscoveryEndpoint    string
+	PGPassword           string
+	DefaultAUDValue      string
+	DefaultIDPValue      string
+	DefaultRealmValue    string
+	SREMCSPGroupsToken   string
+	GlobalRealmValue     string
+	GlobalAccountIDP     string
+	GlobalAccountAud     string
+	UserValidationAPIV2  string
+	IAMHostURL           string
+	AccountIAMURL        string
+	AccountIAMConsoleURL string
+	AccountIAMNamespace  string
 }
 
 var BootstrapData BootstrapSecret
+
+// RouteData holds the parameters for the Route CR
+type RouteParams struct {
+	CAcert string
+}
+
+var RouteData RouteParams
 
 // RedisCRParams holds the parameters for the Redis CR
 type RedisCRParams struct {
@@ -142,7 +149,6 @@ var UIBootstrapData UIBootstrapTemplate
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=liberty.websphere.ibm.com,resources=webspherelibertyapplications,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings;roles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=use
@@ -208,9 +214,9 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 		return err
 	}
 
-	operatorNames := []string{resources.WebSpherePackage, resources.RedisOperator, resources.IMPackage}
+	operatorNames := []string{resources.RedisOperator, resources.IMPackage}
 
-	// Request WebSphere, IM operator and wait for their status
+	// Request IM operator and wait for their status
 	if err := r.createOperandRequest(ctx, instance, resources.UserMgmtOpreq, operatorNames); err != nil {
 		return err
 	}
@@ -233,14 +239,6 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 	if err := utils.WaitForOperandReady(ctx, r.Client, resources.UserMgmtOpreq, instance.Namespace); err != nil {
 		klog.Infof("Failed to wait for all operand ready in OperandRequest %s", resources.UserMgmtOpreq)
 		return err
-	}
-
-	existWebsphere, err := utils.CheckCRD(r.Config, resources.WebSphereAPIGroupVersion, resources.WebSphereKind)
-	if err != nil {
-		return err
-	}
-	if !existWebsphere {
-		return errors.New("Missing WebSphereLibertyApplication CRD")
 	}
 
 	// Generate PG password
@@ -370,7 +368,7 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 			return nil, err
 		}
 
-		accountIAMHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
+		accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
 		clientVars, err := utils.RandStrings(8, 8)
 		if err != nil {
 			return nil, err
@@ -385,22 +383,22 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 				Namespace: ns,
 			},
 			Data: map[string][]byte{
-				"Realm":               []byte("PrimaryRealm"),
-				"ClientID":            clinetID,
-				"ClientSecret":        clientSecret,
-				"DiscoveryEndpoint":   []byte("https://" + host + "/idprovider/v1/auth/.well-known/openid-configuration"),
-				"UserValidationAPIV2": []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
-				"DefaultAUDValue":     clinetID,
-				"DefaultIDPValue":     []byte("https://" + host + "/idprovider/v1/auth"),
-				"DefaultRealmValue":   []byte("PrimaryRealm"),
-				"SREMCSPGroupsToken":  []byte("mcsp-im-integration-admin"),
-				"GlobalRealmValue":    []byte("PrimaryRealm"),
-				"GlobalAccountIDP":    []byte("https://" + host + "/idprovider/v1/auth"),
-				"GlobalAccountAud":    clinetID,
-				"AccountIAMNamespace": []byte(ns),
-				"PGPassword":          pg,
-				"IAMHostURL":          []byte("https://" + host),
-				"AccountIAMHostURL":   []byte("https://" + accountIAMHost),
+				"Realm":                []byte("PrimaryRealm"),
+				"ClientID":             clinetID,
+				"ClientSecret":         clientSecret,
+				"DiscoveryEndpoint":    []byte("https://" + host + "/idprovider/v1/auth/.well-known/openid-configuration"),
+				"UserValidationAPIV2":  []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
+				"DefaultAUDValue":      clinetID,
+				"DefaultIDPValue":      []byte("https://" + host + "/idprovider/v1/auth"),
+				"DefaultRealmValue":    []byte("PrimaryRealm"),
+				"SREMCSPGroupsToken":   []byte("mcsp-im-integration-admin"),
+				"GlobalRealmValue":     []byte("PrimaryRealm"),
+				"GlobalAccountIDP":     []byte("https://" + host + "/idprovider/v1/auth"),
+				"GlobalAccountAud":     clinetID,
+				"AccountIAMNamespace":  []byte(ns),
+				"PGPassword":           pg,
+				"IAMHostURL":           []byte("https://" + host),
+				"AccountIAMConsoleURL": []byte("https://" + accountIAMUIHost),
 			},
 			Type: corev1.SecretTypeOpaque,
 		}
@@ -541,6 +539,38 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		if err := r.createOrUpdate(ctx, object); err != nil {
 			return err
 		}
+	}
+
+	klog.Infof("Creating Account IAM yamls")
+	for _, v := range res.ACCOUNT_IAM_RES {
+		object := &unstructured.Unstructured{}
+		v = utils.ReplaceImages(v)
+		manifest := []byte(v)
+		if err := yaml.Unmarshal(manifest, object); err != nil {
+			return err
+		}
+		object.SetNamespace(instance.Namespace)
+		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.createOrUpdate(ctx, object); err != nil {
+			return err
+		}
+	}
+
+	klog.Infof("Creating Account IAM Routes")
+	caCRT, err := utils.GetSecretData(ctx, r.Client, resources.AccountIAMsvc, instance.Namespace, "ca.crt")
+	if err != nil {
+		klog.Errorf("Failed to get ca.crt from secret %s in namespace %s", resources.AccountIAMsvc, instance.Namespace)
+		return err
+	}
+
+	RouteData := RouteParams{
+		CAcert: utils.IndentCert(caCRT, 6),
+	}
+
+	if err := r.injectData(ctx, instance, res.ACCOUNT_IAM_ROUTE_RES, RouteData); err != nil {
+		return err
 	}
 
 	// Temporary update issuer in platform-auth-idp configmap
@@ -688,8 +718,7 @@ func (r *AccountIAMReconciler) configIM(ctx context.Context, instance *operatorv
 	}
 
 	mcspHost := "https://" + host
-	encodedURL := base64.StdEncoding.EncodeToString([]byte(mcspHost))
-	BootstrapData.AccountIAMURL = encodedURL
+	BootstrapData.AccountIAMURL = base64.StdEncoding.EncodeToString([]byte(mcspHost))
 
 	klog.Infof("Applying IM Config Job")
 	decodedData, err := r.decodeData(BootstrapData)

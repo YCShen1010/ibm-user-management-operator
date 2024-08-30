@@ -23,12 +23,6 @@ const (
 	UserMgmtOpreq = "ibm-user-management-request"
 	// OpreqKind is the kind of OperandConfig
 	OpreqKind = "OperandRequest"
-	// WebSphere is the name of WebSphere Operator
-	WebSpherePackage = "ibm-websphere-liberty"
-	// WebSphereAPIGroupVersion is the api group version of WebSphereLibertyApplication
-	WebSphereAPIGroupVersion = "liberty.websphere.ibm.com/v1"
-	// WebSphereKind is the kind of WebSphereLibertyApplication
-	WebSphereKind = "WebSphereLibertyApplication"
 	// RedisOperator is the subscription name of Redis Operator
 	RedisOperator = "ibm-redis-cp-operator"
 	// Rediscp is the name of Redis CR
@@ -61,6 +55,8 @@ const (
 	CreateDBJob = "create-account-iam-db"
 	// DBMigrationJob is the name of the database migration job
 	DBMigrationJob = "account-iam-db-migration-mcspid"
+	// AccountIAM service secret
+	AccountIAMsvc = "account-iam-svc-tls-cm"
 	// IMConfigJob is the name of the IM configuration job
 	IMConfigJob = "mcsp-im-config-job"
 	// IMOIDCCrendential is the secret where the IM OIDC credential is stored
