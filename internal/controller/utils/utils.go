@@ -288,7 +288,7 @@ func WaitForRediscp(ctx context.Context, k8sClient client.Client, ns, name, grou
 			}
 		}
 
-		klog.Infof("Redis CR %s in namespace %s is not completed yet...", name, ns)
+		klog.Infof("Rediscp CR %s in namespace %s is not completed yet...", name, ns)
 		return false, nil
 	})
 }

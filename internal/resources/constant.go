@@ -69,4 +69,6 @@ const (
 	IMAPISecret = "mcsp-im-integration-details"
 	// IMAPIKey is the key in the secret.data where the IM API key is stored
 	IMAPIKey = "API_KEY"
+	// SkipAnnotations is the annotation to skip the update of the operand resrouces
+	SkipAnnotation = "operator.ibm.com/ibm-user-management-operator.skip-update"
 )
