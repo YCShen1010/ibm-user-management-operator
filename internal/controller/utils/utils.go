@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -166,6 +167,32 @@ func GetSecretData(ctx context.Context, k8sClient client.Client, secretName, ns,
 	return string(data), nil
 }
 
+func CombineData(dataStructs ...interface{}) map[string]interface{} {
+	combinedData := make(map[string]interface{})
+
+	for _, dataStruct := range dataStructs {
+		value := reflect.ValueOf(dataStruct)
+		types := reflect.TypeOf(dataStruct)
+
+		if value.Kind() == reflect.Ptr {
+			value = value.Elem()
+			types = types.Elem()
+		}
+
+		if value.Kind() != reflect.Struct {
+			continue
+		}
+
+		for i := 0; i < value.NumField(); i++ {
+			fieldName := types.Field(i).Name
+			fieldValue := value.Field(i).Interface()
+			combinedData[fieldName] = fieldValue
+		}
+	}
+
+	return combinedData
+}
+
 // indentCertificate to add indentation to each line of the certificate
 func IndentCert(cert string, indentSpaces int) string {
 	lines := strings.Split(cert, "\n")
@@ -185,6 +212,8 @@ func InsertColonInURL(redisURL string) string {
 	}
 	return redisURL
 }
+
+// -------------- Wait Functions --------------
 
 // WaitForOperatorReady check operator status in OperandRequest
 func WaitForOperatorReady(ctx context.Context, k8sClient client.Client, opreqName, ns string) error {

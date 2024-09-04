@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"text/template"
 	"time"
@@ -62,26 +61,32 @@ type AccountIAMReconciler struct {
 
 // BootstrapSecret stores all the bootstrap secret data
 type BootstrapSecret struct {
-	Realm                string
-	ClientID             string
-	ClientSecret         string
+	Realm               string
+	ClientID            string
+	ClientSecret        string
+	PGPassword          string
+	DefaultAUDValue     string
+	DefaultRealmValue   string
+	SREMCSPGroupsToken  string
+	GlobalRealmValue    string
+	GlobalAccountAud    string
+	UserValidationAPIV2 string
+}
+
+var BootstrapData BootstrapSecret
+
+// BootstrapSecret stores all the bootstrap secret data
+type MCSPSecret struct {
 	DiscoveryEndpoint    string
-	PGPassword           string
-	DefaultAUDValue      string
 	DefaultIDPValue      string
-	DefaultRealmValue    string
-	SREMCSPGroupsToken   string
-	GlobalRealmValue     string
 	GlobalAccountIDP     string
-	GlobalAccountAud     string
-	UserValidationAPIV2  string
-	IAMHostURL           string
+	IMURL                string
 	AccountIAMURL        string
 	AccountIAMConsoleURL string
 	AccountIAMNamespace  string
 }
 
-var BootstrapData BootstrapSecret
+var MCSPData MCSPSecret
 
 // RouteData holds the parameters for the Route CR
 type RouteParams struct {
@@ -257,7 +262,7 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 
 	// Create bootstrap secret
 	klog.Info("Creating bootstrap secret")
-	bootstrapsecret, err := r.initBootstrapData(ctx, instance.Namespace, pgPassword[0], host)
+	bootstrapsecret, err := r.initBootstrapData(ctx, instance.Namespace, pgPassword[0])
 	if err != nil {
 		return err
 	}
@@ -268,6 +273,11 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 		return err
 	}
 	if err := yaml.Unmarshal(bootstrapConverter, &BootstrapData); err != nil {
+		return err
+	}
+
+	// Initialize the MCSPData struct
+	if err := r.initMCSPData(ctx, instance.Namespace, host); err != nil {
 		return err
 	}
 
@@ -360,7 +370,7 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 }
 
 // InitBootstrapData initializes BootstrapData with default values
-func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string, pg []byte, host string) (*corev1.Secret, error) {
+func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string, pg []byte) (*corev1.Secret, error) {
 
 	bootstrapsecret := &corev1.Secret{}
 	if err := r.Get(ctx, client.ObjectKey{Name: "user-mgmt-bootstrap", Namespace: ns}, bootstrapsecret); err != nil {
@@ -368,7 +378,6 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 			return nil, err
 		}
 
-		accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
 		clientVars, err := utils.RandStrings(8, 8)
 		if err != nil {
 			return nil, err
@@ -383,22 +392,16 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 				Namespace: ns,
 			},
 			Data: map[string][]byte{
-				"Realm":                []byte("PrimaryRealm"),
-				"ClientID":             clinetID,
-				"ClientSecret":         clientSecret,
-				"DiscoveryEndpoint":    []byte("https://" + host + "/idprovider/v1/auth/.well-known/openid-configuration"),
-				"UserValidationAPIV2":  []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
-				"DefaultAUDValue":      clinetID,
-				"DefaultIDPValue":      []byte("https://" + host + "/idprovider/v1/auth"),
-				"DefaultRealmValue":    []byte("PrimaryRealm"),
-				"SREMCSPGroupsToken":   []byte("mcsp-im-integration-admin"),
-				"GlobalRealmValue":     []byte("PrimaryRealm"),
-				"GlobalAccountIDP":     []byte("https://" + host + "/idprovider/v1/auth"),
-				"GlobalAccountAud":     clinetID,
-				"AccountIAMNamespace":  []byte(ns),
-				"PGPassword":           pg,
-				"IAMHostURL":           []byte("https://" + host),
-				"AccountIAMConsoleURL": []byte("https://" + accountIAMUIHost),
+				"Realm":               []byte("PrimaryRealm"),
+				"ClientID":            clinetID,
+				"ClientSecret":        clientSecret,
+				"UserValidationAPIV2": []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
+				"DefaultAUDValue":     clinetID,
+				"DefaultRealmValue":   []byte("PrimaryRealm"),
+				"SREMCSPGroupsToken":  []byte("mcsp-im-integration-admin"),
+				"GlobalRealmValue":    []byte("PrimaryRealm"),
+				"GlobalAccountAud":    clinetID,
+				"PGPassword":          pg,
 			},
 			Type: corev1.SecretTypeOpaque,
 		}
@@ -411,6 +414,24 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 		return newsecret, nil
 	}
 	return bootstrapsecret, nil
+}
+
+// InitMCSPData initializes MCSPData with default values
+func (r *AccountIAMReconciler) initMCSPData(ctx context.Context, ns string, host string) error {
+	klog.Infof("Initializing MCSP Data")
+	accountIAMHost := strings.Replace(host, "cp-console", "account-iam", 1)
+	accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
+
+	MCSPData = MCSPSecret{
+		DiscoveryEndpoint:    utils.Concat("https://", host, "/idprovider/v1/auth/.well-known/openid-configuration"),
+		DefaultIDPValue:      utils.Concat("https://", host, "/idprovider/v1/auth"),
+		GlobalAccountIDP:     utils.Concat("https://", host, "/idprovider/v1/auth"),
+		AccountIAMNamespace:  ns,
+		IMURL:                utils.Concat("https://", host),
+		AccountIAMURL:        utils.Concat("https://", accountIAMHost),
+		AccountIAMConsoleURL: utils.Concat("https://", accountIAMUIHost),
+	}
+	return nil
 }
 
 func (r *AccountIAMReconciler) cleanJob(ctx context.Context, jobs []string, ns string) error {
@@ -519,7 +540,8 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 
 	BootstrapData.GlobalAccountAud = base64.StdEncoding.EncodeToString([]byte(string(decodedGlobalAud) + "," + wlpClientID))
 	BootstrapData.DefaultAUDValue = base64.StdEncoding.EncodeToString([]byte(string(decodedDefaultAud) + "," + wlpClientID))
-	if err := r.injectData(ctx, instance, res.APP_SECRETS, BootstrapData); err != nil {
+
+	if err := r.injectData(ctx, instance, res.APP_SECRETS, BootstrapData, MCSPData); err != nil {
 		return err
 	}
 
@@ -573,27 +595,20 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		return err
 	}
 
-	// Temporary update issuer in platform-auth-idp configmap
+	// Update issuer in platform-auth-idp configmap
 	klog.Infof("Updating platform-auth-idp configmap")
 	idpconfig := &corev1.ConfigMap{}
-	if err := r.Get(ctx, client.ObjectKey{Name: "platform-auth-idp", Namespace: instance.Namespace}, idpconfig); err != nil {
-		klog.Errorf("Failed to get configmap platform-auth-idp in namespace %s", instance.Namespace)
+	if err := r.Get(ctx, client.ObjectKey{Name: resources.IMPlatformCM, Namespace: instance.Namespace}, idpconfig); err != nil {
+		klog.Errorf("Failed to get configmap %s in namespace %s: %v", resources.IMPlatformCM, instance.Namespace, err)
 		return err
 	}
-	currentIssuer := idpconfig.Data["OIDC_ISSUER_URL"]
 
-	decodedData, err := r.decodeData(BootstrapData)
-	if err != nil {
-		return err
-	}
-	idpValue := decodedData.DefaultIDPValue
-
-	if currentIssuer == idpValue {
-		klog.Infof("ConfigMap platform-auth-idp already has the desired value for OIDC_ISSUER_URL: %s", currentIssuer)
+	if idpconfig.Data["OIDC_ISSUER_URL"] == MCSPData.DefaultIDPValue {
+		klog.Infof("ConfigMap platform-auth-idp already has the desired value for OIDC_ISSUER_URL: %s", idpconfig.Data["OIDC_ISSUER_URL"])
 		return nil // Skip the update as the value is already set
 	}
 
-	idpconfig.Data["OIDC_ISSUER_URL"] = decodedData.DefaultIDPValue
+	idpconfig.Data["OIDC_ISSUER_URL"] = MCSPData.DefaultIDPValue
 	if err := r.Update(ctx, idpconfig); err != nil {
 		klog.Errorf("Failed to update ConfigMap platform-auth-idp in namespace %s: %v", instance.Namespace, err)
 		return err
@@ -612,19 +627,21 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	return nil
 }
 
-func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operatorv1alpha1.AccountIAM, manifests []string, data interface{}) error {
+func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operatorv1alpha1.AccountIAM, manifests []string, dataList ...interface{}) error {
+
+	// Combine the data from all structs into a single map
+	combinedData := utils.CombineData(dataList...)
 
 	var buffer bytes.Buffer
-
 	// Loop through each secret manifest that requires data injection
 	for _, manifest := range manifests {
 		object := &unstructured.Unstructured{}
 		buffer.Reset()
 
-		// Parse the manifest template and execute it with the provided bootstrap data
+		// Parse the manifest template and execute it with the provided data
 		manifest = utils.ReplaceImages(manifest)
-		t := template.Must(template.New("template resrouces").Parse(manifest))
-		if err := t.Execute(&buffer, data); err != nil {
+		t := template.Must(template.New("template resources").Parse(manifest))
+		if err := t.Execute(&buffer, combinedData); err != nil {
 			return err
 		}
 
@@ -645,24 +662,9 @@ func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operato
 	return nil
 }
 
-func (r *AccountIAMReconciler) decodeData(data BootstrapSecret) (BootstrapSecret, error) {
-	val := reflect.ValueOf(&data).Elem()
-	for i := 0; i < val.NumField(); i++ {
-		field := val.Field(i)
-		if field.Kind() == reflect.String {
-			decoded, err := base64.StdEncoding.DecodeString(field.String())
-			if err != nil {
-				return data, err
-			}
-			field.SetString(string(decoded))
-		}
-	}
-	return data, nil
-}
-
 func (r *AccountIAMReconciler) restartAndCheckPod(ctx context.Context, ns, label string) error {
-	// restart platform-auth-service pod and wait for it to be ready
 
+	// restart platform-auth-service pod and wait for it to be ready
 	pod, err := r.getPodName(ctx, ns, label)
 	if err != nil {
 		return err
@@ -712,21 +714,9 @@ func (r *AccountIAMReconciler) getPodName(ctx context.Context, namespace, label 
 
 func (r *AccountIAMReconciler) configIM(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 
-	host, err := utils.GetHost(ctx, r.Client, "account-iam", instance.Namespace)
-	if err != nil {
-		return err
-	}
-
-	mcspHost := "https://" + host
-	BootstrapData.AccountIAMURL = base64.StdEncoding.EncodeToString([]byte(mcspHost))
-
 	klog.Infof("Applying IM Config Job")
-	decodedData, err := r.decodeData(BootstrapData)
-	if err != nil {
-		return err
-	}
 
-	if err := r.injectData(ctx, instance, res.IMConfigYamls, decodedData); err != nil {
+	if err := r.injectData(ctx, instance, res.IMConfigYamls, MCSPData); err != nil {
 		return err
 	}
 

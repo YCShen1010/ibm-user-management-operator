@@ -36,7 +36,7 @@ spec:
           - name: NAMESPACE
             value: {{ .AccountIAMNamespace }}
           - name: IM_HOST_BASE_URL
-            value: {{ .IAMHostURL }}
+            value: {{ .IMURL }}
           - name: ACCOUNT_IAM_BASE_URL
             value: {{ .AccountIAMURL }}
           - name: ACCOUNT_IAM_CONSOLE_BASE_URL

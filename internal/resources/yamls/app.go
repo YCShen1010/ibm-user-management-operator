@@ -32,6 +32,7 @@ data:
   realm: {{ .Realm }}
   client_id: {{ .ClientID }}
   client_secret: {{ .ClientSecret }}
+stringData:
   discovery_endpoint: {{ .DiscoveryEndpoint }}
 type: Opaque
 `
@@ -72,10 +73,10 @@ stringData:
   pg_db_user: user_accountiam
   pg_jdbc_password_jndi: "jdbc/iamdatasource"
   pg_ssl_mode: prefer
+  GLOBAL_ACCOUNT_IDP: {{ .GlobalAccountIDP }}
 data:
   pgPassword: {{ .PGPassword }}
   GLOBAL_ACCOUNT_AUD: {{ .GlobalAccountAud }}
-  GLOBAL_ACCOUNT_IDP: {{ .GlobalAccountIDP }}
   GLOBAL_ACCOUNT_REALM: {{ .GlobalRealmValue }}
 type: Opaque
 `
@@ -94,9 +95,10 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
 data:
   DEFAULT_AUD_VALUE: {{ .DefaultAUDValue }}
-  DEFAULT_IDP_VALUE: {{ .DefaultIDPValue }}
   DEFAULT_REALM_VALUE: {{ .DefaultRealmValue }}
   SRE_MCSP_GROUPS_TOKEN: {{ .SREMCSPGroupsToken }}
+stringData:
+  DEFAULT_IDP_VALUE: {{ .DefaultIDPValue }}
 type: Opaque
 `
 

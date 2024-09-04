@@ -61,6 +61,8 @@ const (
 	IMConfigJob = "mcsp-im-config-job"
 	// IMOIDCCrendential is the secret where the IM OIDC credential is stored
 	IMOIDCCrendential = "ibm-iam-bindinfo-platform-oidc-credentials"
+	// IMPlatformCM is the configmap where the auth idp related information is stored
+	IMPlatformCM = "platform-auth-idp"
 	// WLPClientID is the key in the secret.data where the WLP client ID is stored
 	WLPClientID = "WLP_CLIENT_ID"
 	// IMAPISecret is the secret where the IM API key is stored
