@@ -71,4 +71,6 @@ const (
 	IMAPIKey = "API_KEY"
 	// SkipAnnotations is the annotation to skip the update of the operand resrouces
 	SkipAnnotation = "operator.ibm.com/ibm-user-management-operator.skip-update"
+	//HashedData is the key for checking the checksum of data section
+	HashedData string = "operator.ibm.com/ibm-user-management-operator.hashedData"
 )

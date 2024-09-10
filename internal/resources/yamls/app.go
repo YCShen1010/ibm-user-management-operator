@@ -26,8 +26,6 @@ metadata:
     for-product: all
     bcdr-candidate: t
     component-name: iam-services
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 data:
   realm: {{ .Realm }}
   client_id: {{ .ClientID }}
@@ -46,8 +44,6 @@ metadata:
     for-product: all
     bcdr-candidate: t
     component-name: iam-services 
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 data:
   user_validation_api_v2: {{ .UserValidationAPIV2 }}
 type: Opaque
@@ -63,8 +59,6 @@ metadata:
     for-product: all
     bcdr-candidate: t
     component-name: iam-services
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 stringData:
   pg_jdbc_host: common-service-db-rw
   pg_jdbc_port: "5432"
@@ -91,8 +85,6 @@ metadata:
     for-product: all
     bcdr-candidate: t
     component-name: iam-services
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 data:
   DEFAULT_AUD_VALUE: {{ .DefaultAUDValue }}
   DEFAULT_REALM_VALUE: {{ .DefaultRealmValue }}
@@ -112,8 +104,6 @@ metadata:
     for-product: all
     bcdr-candidate: t
     component-name: iam-services
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
 spec:
   podSelector:
     matchLabels:
@@ -137,8 +127,6 @@ metadata:
     component-name: iam-services
     by-squad: mcsp-user-management
     for-product: all
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 spec:
   podSelector:
     matchLabels:
@@ -181,8 +169,6 @@ metadata:
     for-product: all
     bcdr-candidate: t
     component-name: iam-services
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 data:
   CLOUD_INSTANCE_ID: dev
   CLOUD_REGION: dev
@@ -201,7 +187,6 @@ metadata:
     bcdr-candidate: t
     component-name: iam-services
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
     test: mcspid
 spec:
   backoffLimit: 3
@@ -254,6 +239,4 @@ metadata:
   labels:
     by-squad: mcsp-user-management
     for-product: all
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
 `

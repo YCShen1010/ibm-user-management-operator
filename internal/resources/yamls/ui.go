@@ -23,8 +23,6 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name:  account-iam-ui-selfsigned-issuer
-  annotations:
-    argocd.argoproj.io/sync-wave: "00"
 spec:
   selfSigned: {}
 `
@@ -34,8 +32,6 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: account-iam-ui-selfsigned-ca-cert
-  annotations:
-    argocd.argoproj.io/sync-wave: "00"
 spec:
   isCA: true
   commonName: account-iam-ui-selfsigned-ca-cert
@@ -53,8 +49,6 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: account-iam-ui-product-reg-ca-issuer
-  annotations:
-    argocd.argoproj.io/sync-wave: "00"
 spec:
   ca:
     secretName: account-iam-ui-root-ca-cert
@@ -65,8 +59,6 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: account-iam-ui-server-cert
-  annotations:
-    argocd.argoproj.io/sync-wave: "00"
 spec:
   secretName: account-iam-ui-server-cert
   dnsNames:
@@ -90,7 +82,6 @@ metadata:
     app: 'account-iam-ui-api-service-onprem'
   name: 'account-iam-ui-api-service-onprem'
   annotations:
-    argocd.argoproj.io/sync-wave: '6'
     service.beta.openshift.io/serving-cert-secret-name: 'account-iam-ui-api-server-onprem-tls'
 spec:
   ports:
@@ -114,7 +105,6 @@ metadata:
     app: 'account-iam-ui-instance-service-onprem'
   name: 'account-iam-ui-instance-service-onprem'
   annotations:
-    argocd.argoproj.io/sync-wave: '6'
     service.beta.openshift.io/serving-cert-secret-name: 'account-iam-ui-instance-server-onprem-tls'
 spec:
   ports:
@@ -204,7 +194,6 @@ kind: Route
 metadata:
   name: 'account-iam-ui-instance-onprem'
   annotations:
-    argocd.argoproj.io/sync-wave: '8'
     haproxy.router.openshift.io/timeout: 30m
 spec:
   host: {{ .InstanceManagementHostname }}
@@ -227,7 +216,6 @@ kind: Route
 metadata:
   name: 'account-iam-ui-api-instance-onprem'
   annotations:
-    argocd.argoproj.io/sync-wave: '8'
     haproxy.router.openshift.io/timeout: 30m
 spec:
   host: {{ .InstanceManagementHostname }}
@@ -251,8 +239,6 @@ metadata:
   name: 'account-iam-ui-api-deployment-onprem'
   labels:
     app: account-iam-ui-api-service-onprem
-  annotations:
-    argocd.argoproj.io/sync-wave: '7'
 spec:
   selector:
     matchLabels:
@@ -421,8 +407,6 @@ metadata:
   name: 'account-iam-ui-instance-deployment-onprem'
   labels:
     app: account-iam-ui-instance-service-onprem
-  annotations:
-    argocd.argoproj.io/sync-wave: '7'
 spec:
   selector:
     matchLabels:

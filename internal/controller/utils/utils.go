@@ -19,7 +19,9 @@ package utils
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"reflect"
@@ -165,6 +167,12 @@ func GetSecretData(ctx context.Context, k8sClient client.Client, secretName, ns,
 	}
 
 	return string(data), nil
+}
+
+// HashResource generates a hash from the raw resource data
+func HashResource(rawData []byte) string {
+	hashedData := sha256.Sum256(rawData)
+	return hex.EncodeToString(hashedData[:7])
 }
 
 func CombineData(dataStructs ...interface{}) map[string]interface{} {

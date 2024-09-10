@@ -38,8 +38,6 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: account-iam-svc-tls-cm
-  annotations:
-    argocd.argoproj.io/sync-wave: '3'
 spec:
   commonName: account-iam.mcsp1.svc
   dnsNames:
@@ -70,8 +68,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: account-iam
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
   labels:
     app.kubernetes.io/component: backend
     app.kubernetes.io/instance: account-iam
@@ -89,7 +85,6 @@ kind: Service
 metadata:
   name: account-iam
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
     service.kubernetes.io/topology-aware-hints: Auto
     service.kubernetes.io/topology-mode: Auto
   labels:
@@ -293,7 +288,6 @@ kind: Route
 metadata:
   name: account-iam
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
     openshift.io/host.generated: "true"
   labels:
     app.kubernetes.io/component: backend

@@ -879,6 +879,31 @@ func (r *AccountIAMReconciler) createOrUpdate(ctx context.Context, obj *unstruct
 		return nil
 	}
 
+	rawData, err := yaml.Marshal(obj.Object)
+	if err != nil {
+		return err
+	}
+
+	newHashedData := utils.HashResource(rawData)
+
+	// Check if the current hash matches the existing hash in the annotations
+	existingAnno := fromCluster.GetAnnotations()
+	if existingAnno != nil {
+		if existingAnno[resources.HashedData] == newHashedData {
+			klog.Infof("Resource %s %s/%s has not changed, skipping update.", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			return nil
+		}
+	}
+
+	// Set the new hash in the annotations
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[resources.HashedData] = newHashedData
+	obj.SetAnnotations(annotations)
+
+	// Update the resource if the configuration has changed
 	obj.SetResourceVersion(fromCluster.GetResourceVersion())
 	if err := r.Update(ctx, obj); err != nil {
 		return err
