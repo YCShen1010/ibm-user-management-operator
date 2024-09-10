@@ -12,19 +12,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: user-mgmt-operand-role
 rules:
-  - verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - delete
-    apiGroups:
-      - ''
-    resources:
-      - secrets
-      - configmaps
-      - pods
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "secrets", "serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
 `
 
 const USER_MGMT_OPERAND_SA = `
