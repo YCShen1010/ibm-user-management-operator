@@ -201,6 +201,7 @@ func (r *AccountIAMReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	klog.Infof("Reconcile completed successfully for AccountIAM CR %s/%s", instance.Namespace, instance.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -795,7 +796,6 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		klog.Errorf("Failed to get secret %s in namespace %s: %v", resources.IMAPISecret, instance.Namespace, err)
 		return err
 	}
-	klog.Infof("apiKey: %s", apiKey)
 
 	// Get the Redis URL SSL
 	redisURlssl, err := utils.GetSecretData(ctx, r.Client, resources.Rediscp, instance.Namespace, resources.RedisURLssl)
@@ -804,7 +804,6 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		return err
 	}
 	redisURlssl = utils.InsertColonInURL(redisURlssl)
-	klog.Infof("redisURlssl: %s", redisURlssl)
 
 	// get Redis cert
 	redisCert, err := utils.GetSecretData(ctx, r.Client, resources.RedisCert, instance.Namespace, resources.RedisCertKey)
@@ -855,22 +854,24 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 
 func (r *AccountIAMReconciler) createOrUpdate(ctx context.Context, obj *unstructured.Unstructured) error {
 
-	// only reachable if update DID see error IsNotFound
-	err := r.Create(ctx, obj)
-	if err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
-			return err
-		}
-	}
-
-	// if the obj is Job, skip the update
-	if obj.GetKind() == "Job" {
-		return nil
-	}
-
 	fromCluster := &unstructured.Unstructured{}
 	fromCluster.SetGroupVersionKind(obj.GroupVersionKind())
-	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}, fromCluster); err != nil {
+	err := r.Get(ctx, types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}, fromCluster)
+
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			_, templateHash, err := utils.CalculateHashes(nil, obj)
+			if err != nil {
+				return err
+			}
+			utils.SetHashAnnotation(obj, templateHash)
+
+			if err := r.Create(ctx, obj); err != nil {
+				return err
+			}
+			klog.V(2).Infof("Created resource %s %s/%s.", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			return nil
+		}
 		return err
 	}
 
@@ -879,35 +880,61 @@ func (r *AccountIAMReconciler) createOrUpdate(ctx context.Context, obj *unstruct
 		return nil
 	}
 
-	rawData, err := yaml.Marshal(obj.Object)
+	// Get the hash of the existing and new resources
+	clusterHash, templateHash, err := utils.CalculateHashes(fromCluster, obj)
 	if err != nil {
 		return err
 	}
 
-	newHashedData := utils.HashResource(rawData)
-
-	// Check if the current hash matches the existing hash in the annotations
-	existingAnno := fromCluster.GetAnnotations()
-	if existingAnno != nil {
-		if existingAnno[resources.HashedData] == newHashedData {
-			klog.Infof("Resource %s %s/%s has not changed, skipping update.", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	if obj.GetKind() == "Job" {
+		if templateHash == clusterHash {
+			klog.V(2).Infof("Job resource %s %s/%s has not changed, skipping update.", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			return nil
 		}
+
+		if err := r.Delete(ctx, fromCluster); err != nil {
+			return err
+		}
+
+		time.Sleep(10 * time.Second)
+
+		utils.SetHashAnnotation(obj, templateHash)
+
+		if err := r.Create(ctx, obj); err != nil {
+			return err
+		}
+		klog.Infof("Recreated Job resource %s %s/%s due to hash mismatch.", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		return nil
 	}
 
-	// Set the new hash in the annotations
-	annotations := obj.GetAnnotations()
-	if annotations == nil {
-		annotations = make(map[string]string)
+	// handle non-Job resources
+	if clusterHash == templateHash {
+		// Merge fromTemplate into fromCluster and update
+
+		mergedObj, err := utils.MergeResources(fromCluster, obj)
+		if err != nil {
+			return err
+		}
+
+		utils.SetHashAnnotation(mergedObj, templateHash)
+		mergedObj.SetResourceVersion(fromCluster.GetResourceVersion())
+
+		if err := r.Update(ctx, mergedObj); err != nil {
+			return err
+		}
+		klog.V(2).Infof("Updated resource %s %s/%s with merged fields.", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		return nil
 	}
-	annotations[resources.HashedData] = newHashedData
-	obj.SetAnnotations(annotations)
+
+	// If hashes don't match, overwrite fromCluster with fromTemplate
+	utils.SetHashAnnotation(obj, templateHash)
 
 	// Update the resource if the configuration has changed
 	obj.SetResourceVersion(fromCluster.GetResourceVersion())
 	if err := r.Update(ctx, obj); err != nil {
 		return err
 	}
+
 	return nil
 }
 

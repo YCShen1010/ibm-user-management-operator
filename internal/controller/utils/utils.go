@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -30,10 +31,12 @@ import (
 
 	"github.com/IBM/ibm-user-management-operator/internal/resources"
 	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
+	"github.com/ghodss/yaml"
 	ocproute "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -169,12 +172,6 @@ func GetSecretData(ctx context.Context, k8sClient client.Client, secretName, ns,
 	return string(data), nil
 }
 
-// HashResource generates a hash from the raw resource data
-func HashResource(rawData []byte) string {
-	hashedData := sha256.Sum256(rawData)
-	return hex.EncodeToString(hashedData[:7])
-}
-
 func CombineData(dataStructs ...interface{}) map[string]interface{} {
 	combinedData := make(map[string]interface{})
 
@@ -219,6 +216,165 @@ func InsertColonInURL(redisURL string) string {
 		return parts[0] + "@" + parts[1]
 	}
 	return redisURL
+}
+
+// CalculateHashes calculates the hash for the existing cluster resource and the new template resource
+func CalculateHashes(fromCluster *unstructured.Unstructured, fromTemplate *unstructured.Unstructured) (string, string, error) {
+
+	templateData, err := yaml.Marshal(fromTemplate.Object)
+	if err != nil {
+		return "", "", err
+	}
+	templateHash := sha256.Sum256(templateData)
+	templateHashStr := hex.EncodeToString(templateHash[:7])
+
+	if fromCluster != nil {
+		clusterAnnos := fromCluster.GetAnnotations()
+		clusterHash := ""
+		if clusterAnnos != nil {
+			clusterHash = clusterAnnos[resources.HashedData]
+		}
+		return clusterHash, templateHashStr, nil
+	}
+	return "", templateHashStr, nil
+}
+
+// SetHashAnnotation sets the hash annotation in the object
+func SetHashAnnotation(obj *unstructured.Unstructured, hash string) {
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[resources.HashedData] = hash
+	obj.SetAnnotations(annotations)
+}
+
+// MergeResources merges two complete unstructured Kubernetes resources
+func MergeResources(fromCluster, fromTemplate *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	// Marshal both unstructured resources into []byte (JSON format)
+	fromClusterBytes, err := json.Marshal(fromCluster.Object)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal fromCluster resource: %v", err)
+	}
+
+	fromTemplateBytes, err := json.Marshal(fromTemplate.Object)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal fromTemplate resource: %v", err)
+	}
+
+	// Merge the resources
+	mergedResource := MergeCR(fromClusterBytes, fromTemplateBytes)
+
+	// Convert mergedResource back to unstructured.Unstructured object
+	mergedUnstructured := &unstructured.Unstructured{
+		Object: mergedResource,
+	}
+
+	return mergedUnstructured, nil
+}
+
+// MergeCR deep merges two custom resource specs, along with labels and annotations.
+func MergeCR(defaultCR, changedCR []byte) map[string]interface{} {
+	if len(defaultCR) == 0 && len(changedCR) == 0 {
+		return make(map[string]interface{})
+	}
+
+	defaultCRDecoded := make(map[string]interface{})
+	changedCRDecoded := make(map[string]interface{})
+
+	// Handle when only one CR is provided
+	if len(defaultCR) != 0 && len(changedCR) == 0 {
+		if err := json.Unmarshal(defaultCR, &defaultCRDecoded); err != nil {
+			klog.Errorf("failed to unmarshal Template CR: %v", err)
+		}
+		return defaultCRDecoded
+	} else if len(defaultCR) == 0 && len(changedCR) != 0 {
+		if err := json.Unmarshal(changedCR, &changedCRDecoded); err != nil {
+			klog.Errorf("failed to unmarshal existing CR: %v", err)
+		}
+		return changedCRDecoded
+	}
+
+	if err := json.Unmarshal(defaultCR, &defaultCRDecoded); err != nil {
+		klog.Errorf("failed to unmarshal Template CR: %v", err)
+	}
+	if err := json.Unmarshal(changedCR, &changedCRDecoded); err != nil {
+		klog.Errorf("failed to unmarshal existing CR: %v", err)
+	}
+
+	// Merge both specs
+	for key := range defaultCRDecoded {
+		checkKeyBeforeMerging(key, defaultCRDecoded[key], changedCRDecoded[key], changedCRDecoded)
+	}
+
+	// Ensure labels and annotations are merged as well
+	mergeMetadata(defaultCRDecoded, changedCRDecoded)
+
+	return changedCRDecoded
+}
+
+// Helper function to merge metadata like labels and annotations
+func mergeMetadata(defaultCRDecoded, changedCRDecoded map[string]interface{}) {
+	// Handle metadata section
+	if defaultMeta, ok := defaultCRDecoded["metadata"].(map[string]interface{}); ok {
+		if changedMeta, ok := changedCRDecoded["metadata"].(map[string]interface{}); ok {
+			// Merge labels
+			if defaultLabels, ok := defaultMeta["labels"].(map[string]interface{}); ok {
+				if changedLabels, ok := changedMeta["labels"].(map[string]interface{}); ok {
+					for key, value := range defaultLabels {
+						changedLabels[key] = value
+					}
+				} else {
+					changedMeta["labels"] = defaultLabels
+				}
+			}
+			if defaultAnnotations, ok := defaultMeta["annotations"].(map[string]interface{}); ok {
+				if changedAnnotations, ok := changedMeta["annotations"].(map[string]interface{}); ok {
+					for key, value := range defaultAnnotations {
+						changedAnnotations[key] = value
+					}
+				} else {
+					changedMeta["annotations"] = defaultAnnotations
+				}
+			}
+		} else {
+			changedCRDecoded["metadata"] = defaultMeta
+		}
+	}
+}
+
+// Recursive function to merge spec
+func checkKeyBeforeMerging(key string, defaultMap, changedMap interface{}, finalMap map[string]interface{}) {
+	if !equality.Semantic.DeepEqual(defaultMap, changedMap) {
+		switch defaultVal := defaultMap.(type) {
+		case map[string]interface{}:
+			if changedMap == nil {
+				finalMap[key] = defaultVal
+			} else if changedVal, ok := changedMap.(map[string]interface{}); ok {
+				for newKey := range defaultVal {
+					checkKeyBeforeMerging(newKey, defaultVal[newKey], changedVal[newKey], finalMap[key].(map[string]interface{}))
+				}
+			}
+		case []interface{}:
+			if changedMap == nil {
+				finalMap[key] = defaultVal
+			} else if changedVal, ok := changedMap.([]interface{}); ok {
+				for i := range defaultVal {
+					if _, ok := defaultVal[i].(map[string]interface{}); ok {
+						if len(changedVal) > i {
+							for newKey := range defaultVal[i].(map[string]interface{}) {
+								checkKeyBeforeMerging(newKey, defaultVal[i].(map[string]interface{})[newKey], changedVal[i].(map[string]interface{})[newKey], finalMap[key].([]interface{})[i].(map[string]interface{}))
+							}
+						}
+					}
+				}
+			}
+		default:
+			if changedMap == nil {
+				finalMap[key] = defaultVal
+			}
+		}
+	}
 }
 
 // -------------- Wait Functions --------------
