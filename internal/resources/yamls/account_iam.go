@@ -2,9 +2,8 @@ package yamls
 
 var ACCOUNT_IAM_RES = []string{
 	ACCOUNT_IAM_CA_ISSUER,
-	ACCOUNT_IAM_SS_ISSUER,
 	ACCOUNT_IAM_CA_CERT,
-	ACCOUNT_IAM_SS_CERT,
+	ACCOUNT_IAM_SVC_CERT,
 	ACCOUNT_IAM_SERVICE_ACCOUNT,
 	ACCOUNT_IAM_SERVICE,
 	ACCOUNT_IAM_DEPLOYMENT,
@@ -18,49 +17,44 @@ var ACCOUNT_IAM_CA_ISSUER = `
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: wlo-ca-issuer
+  name: account-iam-ca-issuer
 spec:
   ca:
-    secretName: wlo-ca-tls
-`
-
-var ACCOUNT_IAM_SS_ISSUER = `
-apiVersion: cert-manager.io/v1
-kind: Issuer
-metadata:
-  name: wlo-self-signed
-spec:
-  selfSigned: {}
+    secretName: cs-ca-certificate-secret
 `
 
 var ACCOUNT_IAM_CA_CERT = `
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: account-iam-svc-tls-cm
+  name: account-iam-ca-cert
+spec:
+  isCA: true
+  commonName: account-iam-ca-cert
+  secretName: account-iam-ca-cert
+  duration: 8766h0m0s
+  issuerRef:
+    name: account-iam-ca-issuer
+    kind: Issuer
+    group: cert-manager.io
+`
+
+var ACCOUNT_IAM_SVC_CERT = `
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: account-iam-svc-tls-cert
 spec:
   commonName: account-iam.mcsp1.svc
+  secretName: account-iam-svc-tls-cert
   dnsNames:
     - account-iam.mcsp1.svc
     - account-iam.mcsp1.svc.cluster.local
   duration: 2160h0m0s
   issuerRef:
-    name: wlo-ca-issuer
-  secretName: account-iam-svc-tls-cm
-`
-
-var ACCOUNT_IAM_SS_CERT = `
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: wlo-ca-cert
-spec:
-  commonName: User Management Operator
-  duration: 8766h0m0s
-  isCA: true
-  issuerRef:
-    name: wlo-self-signed
-  secretName: wlo-ca-tls
+    name: account-iam-ca-issuer
+    kind: Issuer
+    group: cert-manager.io
 `
 
 var ACCOUNT_IAM_SERVICE_ACCOUNT = `
@@ -279,7 +273,7 @@ spec:
               name: account-iam-mpconfig-secrets
       - name: svc-certificate
         secret:
-          secretName: account-iam-svc-tls-cm
+          secretName: account-iam-svc-tls-cert
 `
 
 var ACCOUNT_IAM_ROUTE = `

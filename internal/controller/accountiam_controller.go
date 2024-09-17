@@ -339,6 +339,22 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 		return errors.New("Redis CRD not found")
 	}
 
+	klog.Infof("Creating Redis certificate")
+	for _, v := range res.REDIS_CERTS {
+		object := &unstructured.Unstructured{}
+		manifest := []byte(v)
+		if err := yaml.Unmarshal(manifest, object); err != nil {
+			return err
+		}
+		object.SetNamespace(instance.Namespace)
+		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.createOrUpdate(ctx, object); err != nil {
+			return err
+		}
+	}
+
 	// Create Redis CR
 	klog.Infof("Redis CRD exists, creating Redis CR %s in namespace %s", resources.Rediscp, instance.Namespace)
 	redisCRData := RedisCRParams{
@@ -570,9 +586,9 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	}
 
 	klog.Infof("Creating Account IAM Routes")
-	caCRT, err := utils.GetSecretData(ctx, r.Client, resources.AccountIAMsvc, instance.Namespace, "ca.crt")
+	caCRT, err := utils.GetSecretData(ctx, r.Client, resources.CSCASecret, instance.Namespace, "ca.crt")
 	if err != nil {
-		klog.Errorf("Failed to get ca.crt from secret %s in namespace %s", resources.AccountIAMsvc, instance.Namespace)
+		klog.Errorf("Failed to get ca.crt from secret %s in namespace %s", resources.CSCASecret, instance.Namespace)
 		return err
 	}
 
@@ -754,6 +770,7 @@ func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, instance *operat
 		}
 	}
 
+	klog.Infof("Creating static yamls for UI")
 	for _, v := range res.StaticYamlsUI {
 		object := &unstructured.Unstructured{}
 		v = utils.ReplaceImages(v)
@@ -805,12 +822,13 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 	}
 	redisURlssl = utils.InsertColonInURL(redisURlssl)
 
-	// get Redis cert
-	redisCert, err := utils.GetSecretData(ctx, r.Client, resources.RedisCert, instance.Namespace, resources.RedisCertKey)
+	// get Redis Certificate Authority
+	caCRT, err := utils.GetSecretData(ctx, r.Client, resources.CSCASecret, instance.Namespace, "ca.crt")
 	if err != nil {
-		klog.Errorf("Failed to get secret %s in namespace %s: %v", resources.RedisCert, instance.Namespace, err)
+		klog.Errorf("Failed to get ca.crt from secret %s in namespace %s", resources.CSCASecret, instance.Namespace)
 		return err
 	}
+	caCRT = base64.StdEncoding.EncodeToString([]byte(caCRT))
 
 	SessionSecret, err := utils.RandStrings(48)
 	if err != nil {
@@ -833,7 +851,7 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		ClientSecret:               string(decodedClientSecret),
 		IAMGlobalAPIKey:            string(apiKey),
 		RedisHost:                  redisURlssl,
-		RedisCA:                    redisCert,
+		RedisCA:                    caCRT,
 		SessionSecret:              string(SessionSecret[0]),
 		DeploymentCloud:            "IBM_CLOUD",
 		IAMAPI:                     utils.Concat("https://account-iam-", instance.Namespace, ".apps.", domain),

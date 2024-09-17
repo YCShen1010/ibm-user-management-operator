@@ -1,9 +1,8 @@
 package yamls
 
 var StaticYamlsUI = []string{
-	IssuerSS,
-	CertCA,
-	IssuerCA,
+	UI_ISSUER_CA,
+	UI_CA_CERT,
 	SvcAPI,
 	SvcInstance,
 	DeploymentAPI,
@@ -11,60 +10,51 @@ var StaticYamlsUI = []string{
 }
 
 var TemplateYamlsUI = []string{
-	CertUI,
+	UI_SVC_CERT,
 	ConfigUI,
 	SecretUI,
 	RouteInstance,
 	RouteAPIInstance,
 }
 
-var IssuerSS = `
+var UI_ISSUER_CA = `
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name:  account-iam-ui-selfsigned-issuer
+  name: account-iam-ui-ca-issuer
 spec:
-  selfSigned: {}
+  ca:
+    secretName: cs-ca-certificate-secret
 `
 
-var CertCA = `
+var UI_CA_CERT = `
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: account-iam-ui-selfsigned-ca-cert
+  name: account-iam-ui-ca-cert
 spec:
   isCA: true
-  commonName: account-iam-ui-selfsigned-ca-cert
-  secretName: account-iam-ui-root-ca-cert
+  commonName: account-iam-ui-ca-cert
+  secretName: account-iam-ui-ca-cert
   duration: 87660h0m0s
   renewBefore: 85500h0m0s
   issuerRef:
-    name: account-iam-ui-selfsigned-issuer
+    name: account-iam-ui-ca-issuer
     kind: Issuer
     group: cert-manager.io
 `
 
-var IssuerCA = `
-apiVersion: cert-manager.io/v1
-kind: Issuer
-metadata:
-  name: account-iam-ui-product-reg-ca-issuer
-spec:
-  ca:
-    secretName: account-iam-ui-root-ca-cert
-`
-
-var CertUI = `
+var UI_SVC_CERT = `
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: account-iam-ui-server-cert
+  name: account-iam-ui-svc-tls-cert
 spec:
-  secretName: account-iam-ui-server-cert
+  secretName: account-iam-ui-svc-tls-cert
   dnsNames:
     - {{ .Hostname }}
   issuerRef:
-    name: account-iam-ui-product-reg-ca-issuer
+    name: account-iam-ui-ca-issuer
     kind: Issuer
     group: cert-manager.io
 `
@@ -389,7 +379,7 @@ spec:
           projected:
             sources:
               - secret:
-                  name:  'account-iam-ui-server-cert'
+                  name:  'account-iam-ui-svc-tls-cert'
                   items:
                     - key: ca.crt
                       path: ca.crt
@@ -521,5 +511,4 @@ spec:
               - key: 'service-ca.crt'
                 path: ca.crt
       serviceAccountName: user-mgmt-operand-serviceaccount
-
 `

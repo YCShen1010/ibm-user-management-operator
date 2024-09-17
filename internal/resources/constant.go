@@ -23,6 +23,8 @@ const (
 	UserMgmtOpreq = "ibm-user-management-request"
 	// OpreqKind is the kind of OperandConfig
 	OpreqKind = "OperandRequest"
+	// CSCASecret is the name of the secret for CA certificate
+	CSCASecret = "cs-ca-certificate-secret"
 	// RedisOperator is the subscription name of Redis Operator
 	RedisOperator = "ibm-redis-cp-operator"
 	// Rediscp is the name of Redis CR
@@ -35,10 +37,6 @@ const (
 	RedisVersion = "v1"
 	//RedisURLssl
 	RedisURLssl = "redis-url-ssl"
-	// RedisURL is the Certificate of Redis
-	RedisCert = "account-iam-ui-redis-cert"
-	// RedisCertKey is the key of Redis CA Certificate
-	RedisCertKey = "cacertb64.pem"
 	// OpreqPhaseRunning is the Running status of Operand
 	OpreqPhaseRunning = "Running"
 	// OperandStatusReady is the Ready status of Operand
@@ -55,8 +53,6 @@ const (
 	CreateDBJob = "create-account-iam-db"
 	// DBMigrationJob is the name of the database migration job
 	DBMigrationJob = "account-iam-db-migration-mcspid"
-	// AccountIAM service secret
-	AccountIAMsvc = "account-iam-svc-tls-cm"
 	// IMConfigJob is the name of the IM configuration job
 	IMConfigJob = "mcsp-im-config-job"
 	// IMOIDCCrendential is the secret where the IM OIDC credential is stored
