@@ -26,8 +26,12 @@ import (
 	"text/template"
 	"time"
 
+	certmgrv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -974,5 +978,17 @@ func (r *AccountIAMReconciler) createOrUpdate(ctx context.Context, obj *unstruct
 func (r *AccountIAMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&operatorv1alpha1.AccountIAM{}).
+		//Owns(&appsv1.Deployment{}).
+		//Owns(&corev1.Secret{}).
+		//Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Service{}).
+		//Owns(&corev1.ServiceAccount{}).
+		Owns(&routev1.Route{}).
+		Owns(&networkingv1.NetworkPolicy{}).
+		Owns(&batchv1.Job{}).
+		Owns(&certmgrv1.Certificate{}).
+		Owns(&certmgrv1.Issuer{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)
 }

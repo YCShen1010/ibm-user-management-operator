@@ -31,8 +31,8 @@ import (
 
 	"github.com/IBM/ibm-user-management-operator/internal/resources"
 	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
-	"github.com/ghodss/yaml"
-	ocproute "github.com/openshift/api/route/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -131,7 +131,7 @@ func RandStrings(lengths ...int) ([][]byte, error) {
 
 // Get the host of the route
 func GetHost(ctx context.Context, k8sClient client.Client, name string, ns string) (string, error) {
-	sourceRoute := &ocproute.Route{}
+	sourceRoute := &routev1.Route{}
 	if err := k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, sourceRoute); err != nil {
 		klog.Errorf("Failed to get route %s in namespace %s", name, ns)
 		return "", err
