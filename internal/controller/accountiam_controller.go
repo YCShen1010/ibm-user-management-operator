@@ -77,15 +77,21 @@ type BootstrapSecret struct {
 
 var BootstrapData BootstrapSecret
 
-// BootstrapSecret stores all the bootstrap secret data
+// IntegrationConfig stores all the integration data for MCSP secret and IM integration
 type IntegrationConfig struct {
-	DiscoveryEndpoint    string
-	DefaultIDPValue      string
-	GlobalAccountIDP     string
-	IMURL                string
-	AccountIAMURL        string
-	AccountIAMConsoleURL string
-	AccountIAMNamespace  string
+	DiscoveryEndpoint       string
+	DefaultIDPValue         string
+	GlobalAccountIDP        string
+	AccountName             string
+	ServiceName             string
+	ServiceIDName           string
+	SubscriptionName        string
+	IMURL                   string
+	AccountIAMURL           string
+	AccountIAMConsoleURL    string
+	AccountIAMNamespace     string
+	EncryptionKeys          string
+	CurrentEncryptionKeyNum string
 }
 
 var IntegrationData IntegrationConfig
@@ -270,7 +276,7 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 	}
 
 	// Initialize the MCSPData struct
-	if err := r.initMCSPData(ctx, instance.Namespace, host); err != nil {
+	if err := r.initMCSPData(instance.Namespace, host); err != nil {
 		return err
 	}
 
@@ -349,12 +355,10 @@ func (r *AccountIAMReconciler) createOperandRequest(ctx context.Context, instanc
 func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 
 	// Check if Redis CRD exists
-	existRedis, err := utils.CheckCRD(r.Config, utils.Concat(resources.RedisAPIGroup, "/", resources.RedisVersion), resources.RedisKind)
-	if err != nil {
+	if existRedis, err := utils.CheckCRD(r.Config, utils.Concat(resources.RedisAPIGroup, "/", resources.RedisVersion), resources.RedisKind); err != nil {
 		return err
-	}
-	if !existRedis {
-		return errors.New("Redis CRD not found")
+	} else if !existRedis {
+		return errors.New("redis CRD not found")
 	}
 
 	klog.Infof("Creating Redis certificate")
@@ -396,7 +400,7 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string, pg []byte) (*corev1.Secret, error) {
 
 	bootstrapsecret := &corev1.Secret{}
-	if err := r.Get(ctx, client.ObjectKey{Name: "user-mgmt-bootstrap", Namespace: ns}, bootstrapsecret); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Name: resources.BootstrapSecret, Namespace: ns}, bootstrapsecret); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, err
 		}
@@ -440,19 +444,31 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 }
 
 // InitMCSPData initializes MCSPData with default values
-func (r *AccountIAMReconciler) initMCSPData(ctx context.Context, ns string, host string) error {
+func (r *AccountIAMReconciler) initMCSPData(ns string, host string) error {
 	klog.Infof("Initializing MCSP Data")
 	accountIAMHost := strings.Replace(host, "cp-console", "account-iam", 1)
 	accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
 
+	// Generate a 256-bit (32 bytes) encryption key
+	keys, err := utils.RandStrings(32)
+	if err != nil {
+		klog.Errorf("Failed to generate encryption key: %v", err)
+	}
+
 	IntegrationData = IntegrationConfig{
-		DiscoveryEndpoint:    utils.Concat("https://", host, "/idprovider/v1/auth/.well-known/openid-configuration"),
-		DefaultIDPValue:      utils.Concat("https://", host, "/idprovider/v1/auth"),
-		GlobalAccountIDP:     utils.Concat("https://", host, "/idprovider/v1/auth"),
-		AccountIAMNamespace:  ns,
-		IMURL:                utils.Concat("https://", host),
-		AccountIAMURL:        utils.Concat("https://", accountIAMHost),
-		AccountIAMConsoleURL: utils.Concat("https://", accountIAMUIHost),
+		AccountName:             "default-account",
+		ServiceName:             "default-service",
+		ServiceIDName:           "default-serviceid",
+		SubscriptionName:        "default-subscription",
+		DiscoveryEndpoint:       utils.Concat("https://", host, "/idprovider/v1/auth/.well-known/openid-configuration"),
+		DefaultIDPValue:         utils.Concat("https://", host, "/idprovider/v1/auth"),
+		GlobalAccountIDP:        utils.Concat("https://", host, "/idprovider/v1/auth"),
+		AccountIAMNamespace:     ns,
+		IMURL:                   utils.Concat("https://", host),
+		AccountIAMURL:           utils.Concat("https://", accountIAMHost),
+		AccountIAMConsoleURL:    utils.Concat("https://", accountIAMUIHost),
+		EncryptionKeys:          fmt.Sprintf(`[{keyNum: 1, key: %s}]`, string(keys[0])),
+		CurrentEncryptionKeyNum: "1",
 	}
 	return nil
 }
@@ -563,8 +579,10 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 
 	BootstrapData.GlobalAccountAud = base64.StdEncoding.EncodeToString([]byte(string(decodedGlobalAud) + "," + wlpClientID))
 	BootstrapData.DefaultAUDValue = base64.StdEncoding.EncodeToString([]byte(string(decodedDefaultAud) + "," + wlpClientID))
+	IntegrationData.EncryptionKeys = base64.StdEncoding.EncodeToString([]byte(IntegrationData.EncryptionKeys))
+	IntegrationData.CurrentEncryptionKeyNum = base64.StdEncoding.EncodeToString([]byte(IntegrationData.CurrentEncryptionKeyNum))
 
-	if err := r.injectData(ctx, instance, res.APP_SECRETS, BootstrapData, IntegrationData); err != nil {
+	if err := r.injectData(ctx, instance, append(res.APP_SECRETS, res.IM_INTEGRATION_YAMLS...), BootstrapData, IntegrationData); err != nil {
 		return err
 	}
 
@@ -708,7 +726,7 @@ func (r *AccountIAMReconciler) restartAndCheckPod(ctx context.Context, ns, label
 	time.Sleep(10 * time.Second)
 
 	if err := utils.WaitForDeploymentReady(ctx, r.Client, ns, label); err != nil {
-		klog.Error("Failed to wait for Deployment %s to be ready in namespace %s", label, ns)
+		klog.Errorf("Failed to wait for Deployment %s to be ready in namespace %s", label, ns)
 		return err
 	}
 
@@ -727,7 +745,7 @@ func (r *AccountIAMReconciler) getPodName(ctx context.Context, namespace, label 
 	}
 
 	if len(podList.Items) == 0 {
-		return "", fmt.Errorf("No pod found with label %s in namespace %s", labelSelector, namespace)
+		return "", fmt.Errorf("no pod found with label %s in namespace %s", labelSelector, namespace)
 	}
 	return podList.Items[0].Name, nil
 }

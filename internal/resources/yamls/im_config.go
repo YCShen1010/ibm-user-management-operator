@@ -31,16 +31,47 @@ spec:
           seccompProfile:
             type: RuntimeDefault
         env:
-          - name: LOG_LEVEL
-            value: debug
           - name: NAMESPACE
-            value: {{ .AccountIAMNamespace }}
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
           - name: IM_HOST_BASE_URL
-            value: {{ .IMURL }}
+            valueFrom:
+              configMapKeyRef:
+                name: ibm-iam-bindinfo-ibmcloud-cluster-info
+                key: cluster_endpoint
           - name: ACCOUNT_IAM_BASE_URL
-            value: {{ .AccountIAMURL }}
+            valueFrom:
+              secretKeyRef:
+                name: mcsp-im-integration-details
+                key: ACCOUNT_IAM_URL
           - name: ACCOUNT_IAM_CONSOLE_BASE_URL
-            value: {{ .AccountIAMConsoleURL }}
+            valueFrom:
+              secretKeyRef:
+                name: mcsp-im-integration-details
+                key: ACCOUNT_IAM_CONSOLE_URL
+          - name: API_KEY_SECRET_NAME
+            value: mcsp-im-integration-details
+          - name: ACCOUNT_NAME
+            valueFrom:
+              secretKeyRef:
+                name: mcsp-im-integration-details
+                key: ACCOUNT_NAME
+          - name: SUBSCRIPTION_NAME
+            valueFrom:
+              secretKeyRef:
+                name: mcsp-im-integration-details
+                key: SUBSCRIPTION_NAME
+          - name: SERVICE_NAME
+            valueFrom:
+              secretKeyRef:
+                name: mcsp-im-integration-details
+                key: SERVICE_NAME
+          - name: SERVICEID_NAME
+            valueFrom:
+              secretKeyRef:
+                name: mcsp-im-integration-details
+                key: SERVICEID_NAME
       serviceAccountName: user-mgmt-operand-serviceaccount
       restartPolicy: OnFailure
 `

@@ -55,6 +55,8 @@ const (
 	EDBClusterKind = "Cluster"
 	// EDBAPIGroupVersion is the api group version of Cluster
 	EDBAPIGroupVersion = "postgresql.k8s.enterprisedb.io/v1"
+	// BootstrapSecret is the name of the secret for user management bootstrap
+	BootstrapSecret = "user-mgmt-bootstrap"
 	// CreateDBJob is the name of the database creation job
 	CreateDBJob = "create-account-iam-db"
 	// DBMigrationJob is the name of the database migration job

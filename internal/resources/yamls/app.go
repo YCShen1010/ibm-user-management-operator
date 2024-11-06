@@ -72,6 +72,8 @@ data:
   pgPassword: {{ .PGPassword }}
   GLOBAL_ACCOUNT_AUD: {{ .GlobalAccountAud }}
   GLOBAL_ACCOUNT_REALM: {{ .GlobalRealmValue }}
+  ENCRYPTION_KEYS: {{ .EncryptionKeys }}
+  CURRENT_ENCRYPTION_KEY_NUM: {{ .CurrentEncryptionKeyNum }}
 type: Opaque
 `
 
