@@ -45,11 +45,11 @@ kind: Certificate
 metadata:
   name: account-iam-svc-tls-cert
 spec:
-  commonName: account-iam.mcsp1.svc
+  commonName: account-iam.${NAMESPACE}.svc
   secretName: account-iam-svc-tls-cert
   dnsNames:
-    - account-iam.mcsp1.svc
-    - account-iam.mcsp1.svc.cluster.local
+    - account-iam.${NAMESPACE}.svc
+    - account-iam.${NAMESPACE}.svc.cluster.local
   duration: 2160h0m0s
   issuerRef:
     name: account-iam-ca-issuer

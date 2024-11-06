@@ -589,6 +589,7 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	klog.Infof("Creating Account IAM yamls")
 	for _, v := range res.ACCOUNT_IAM_RES {
 		object := &unstructured.Unstructured{}
+		v = strings.ReplaceAll(v, "${NAMESPACE}", instance.Namespace)
 		v = utils.ReplaceImages(v)
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
