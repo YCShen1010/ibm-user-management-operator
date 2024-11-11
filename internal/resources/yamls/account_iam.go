@@ -173,7 +173,7 @@ spec:
           value: "230832362"
         envFrom:
         - configMapRef:
-            name: account-iam-env-configmap-dev
+            name: account-iam-env-configmap-development
         ports:
         - containerPort: 9445
           name: 9445-tcp

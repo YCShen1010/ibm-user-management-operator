@@ -165,7 +165,7 @@ const CONFIG_ENV = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: account-iam-env-configmap-dev
+  name: account-iam-env-configmap-development
   labels:
     by-squad: mcsp-user-management
     for-product: all
@@ -176,6 +176,7 @@ data:
   CLOUD_REGION: dev
   NOTIFICATION_SERVICE_ENABLED: ""
   LOCAL_TOKEN_ISSUER: https://127.0.0.1:9443/oidc/endpoint/OP
+  TOKEN_EXCHANGE_VALIDATE_ROLES: "true"
 `
 
 const DB_MIGRATION_MCSPID = `
