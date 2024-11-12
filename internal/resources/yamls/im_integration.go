@@ -16,5 +16,6 @@ stringData:
   SERVICEID_NAME: {{ .ServiceIDName }}
   SERVICE_NAME: {{ .ServiceName }}
   SUBSCRIPTION_NAME: {{ .SubscriptionName }}
+  APIKEY_NAME: default-apikey
 type: Opaque
 `

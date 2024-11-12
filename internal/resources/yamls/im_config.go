@@ -72,6 +72,11 @@ spec:
               secretKeyRef:
                 name: mcsp-im-integration-details
                 key: SERVICEID_NAME
+          - name: APIKEY_NAME
+            valueFrom:
+              secretKeyRef:
+                name: mcsp-im-integration-details
+                key: APIKEY_NAME
       serviceAccountName: user-mgmt-operand-serviceaccount
       restartPolicy: OnFailure
 `

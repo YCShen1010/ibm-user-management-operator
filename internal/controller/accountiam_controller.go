@@ -845,7 +845,7 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 	klog.Infof("domain: %s", domain)
 
 	// Get the API key
-	apiKey, err := utils.GetSecretData(ctx, r.Client, resources.IMAPISecret, instance.Namespace, resources.IMAPIKey)
+	apiKey, err := utils.GetSecretData(ctx, r.Client, resources.IMAPISecret, instance.Namespace, resources.MCSPAPIKey)
 	if err != nil {
 		klog.Errorf("Failed to get secret %s in namespace %s: %v", resources.IMAPISecret, instance.Namespace, err)
 		return err
