@@ -833,14 +833,14 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: "ibmcloud-cluster-info"}, clusterInfo); err != nil {
 		return err
 	}
-	if _, ok := clusterInfo.Data["cluster_kube_apiserver_host"]; !ok {
-		return errors.New("configmap ibmcloud-cluster-info missing field 'cluster_kube_apiserver_host'")
+	if _, ok := clusterInfo.Data["cluster_address"]; !ok {
+		return errors.New("configmap ibmcloud-cluster-info missing field 'cluster_address'")
 	}
 	cpconsole, ok := clusterInfo.Data["cluster_endpoint"]
 	if !ok {
 		return errors.New("configmap ibmcloud-cluster-info missing field 'cluster_endpoint'")
 	}
-	parsing := strings.Split(clusterInfo.Data["cluster_kube_apiserver_host"], ".")
+	parsing := strings.Split(clusterInfo.Data["cluster_address"], ".")
 	domain := strings.Join(parsing[1:], ".")
 	klog.Infof("domain: %s", domain)
 
@@ -882,8 +882,8 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 	}
 
 	UIBootstrapData = UIBootstrapTemplate{
-		Hostname:                   utils.Concat("account-iam-console-", instance.Namespace, ".apps.", domain),
-		InstanceManagementHostname: utils.Concat("account-iam-console-", instance.Namespace, ".apps.", domain),
+		Hostname:                   utils.Concat("account-iam-console-", instance.Namespace, domain),
+		InstanceManagementHostname: utils.Concat("account-iam-console-", instance.Namespace, domain),
 		ClientID:                   string(decodedClientID),
 		ClientSecret:               string(decodedClientSecret),
 		IAMGlobalAPIKey:            string(apiKey),
@@ -891,7 +891,7 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		RedisCA:                    caCRT,
 		SessionSecret:              string(SessionSecret[0]),
 		DeploymentCloud:            "IBM_CLOUD",
-		IAMAPI:                     utils.Concat("https://account-iam-", instance.Namespace, ".apps.", domain),
+		IAMAPI:                     utils.Concat("https://account-iam-", instance.Namespace, domain),
 		NodeEnv:                    "production",
 		CertDir:                    "../../security",
 		ConfigEnv:                  "dev",

@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM docker.io/golang:1.22 AS builder
+FROM docker-na-public.artifactory.swg-devops.com/hyc-cloud-private-dockerhub-docker-remote/golang:1.23.2 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -36,6 +36,6 @@ ARG VCS_URL
 LABEL org.label-schema.vendor="IBM" \
   org.label-schema.name="ibm user management operator" \
   org.label-schema.vcs-ref=$VCS_REF \
-  org.label-schema.vcs-url=$VCS_URL 
+  org.label-schema.vcs-url=$VCS_URL
 
 ENTRYPOINT ["/manager"]
