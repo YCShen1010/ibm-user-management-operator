@@ -882,8 +882,8 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 	}
 
 	UIBootstrapData = UIBootstrapTemplate{
-		Hostname:                   utils.Concat("account-iam-console-", instance.Namespace, domain),
-		InstanceManagementHostname: utils.Concat("account-iam-console-", instance.Namespace, domain),
+		Hostname:                   utils.Concat("account-iam-console-", instance.Namespace, ".", domain),
+		InstanceManagementHostname: utils.Concat("account-iam-console-", instance.Namespace, ".", domain),
 		ClientID:                   string(decodedClientID),
 		ClientSecret:               string(decodedClientSecret),
 		IAMGlobalAPIKey:            string(apiKey),
@@ -891,7 +891,7 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		RedisCA:                    caCRT,
 		SessionSecret:              string(SessionSecret[0]),
 		DeploymentCloud:            "IBM_CLOUD",
-		IAMAPI:                     utils.Concat("https://account-iam-", instance.Namespace, domain),
+		IAMAPI:                     utils.Concat("https://account-iam-", instance.Namespace, ".", domain),
 		NodeEnv:                    "production",
 		CertDir:                    "../../security",
 		ConfigEnv:                  "dev",
