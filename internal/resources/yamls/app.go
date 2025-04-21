@@ -43,7 +43,7 @@ metadata:
     by-squad: mcsp-user-management
     for-product: all
     bcdr-candidate: t
-    component-name: iam-services 
+    component-name: iam-services
 data:
   user_validation_api_v2: {{ .UserValidationAPIV2 }}
 type: Opaque
@@ -109,12 +109,12 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      name: account-iam 
+      name: account-iam
   ingress:
     - ports:
         # calls to the API
         - protocol: TCP
-          port: 9445 
+          port: 9445
   policyTypes:
     - Ingress
 `
@@ -132,7 +132,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      name: account-iam 
+      name: account-iam
   policyTypes:
     - Egress
   egress:
@@ -174,7 +174,7 @@ metadata:
 data:
   CLOUD_INSTANCE_ID: dev
   CLOUD_REGION: dev
-  NOTIFICATION_SERVICE_ENABLED: ""
+  NOTIFICATION_SERVICE_ENABLED: "false"
   LOCAL_TOKEN_ISSUER: https://127.0.0.1:9443/oidc/endpoint/OP
   TOKEN_EXCHANGE_VALIDATE_ROLES: "true"
 `
