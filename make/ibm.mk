@@ -112,7 +112,7 @@ docker-build-push-prod: docker-build-prod docker-push
 clean-before-commit:
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(ICR_IMAGE_TAG_BASE):latest
 	cp ./bundle/manifests/ibm-user-management-operator.clusterserviceversion.yaml ./bundle/manifests/tmp.yaml
-	sed -e 's|image: .*|image: $(ICR_IMAGE_TAG_BASE):latest|g' \
+	sed -e 's|image:.*ibm-user-management-operator.*|image: $(ICR_IMAGE_TAG_BASE):latest|g' \
 		-e 's|Always|IfNotPresent|g' \
 		./bundle/manifests/tmp.yaml > ./bundle/manifests/ibm-user-management-operator.clusterserviceversion.yaml
 	rm ./bundle/manifests/tmp.yaml

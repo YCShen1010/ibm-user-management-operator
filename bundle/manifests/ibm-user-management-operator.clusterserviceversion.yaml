@@ -24,7 +24,7 @@ metadata:
     categories: Security
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
-    createdAt: "2024-09-04T18:55:40Z"
+    createdAt: "2025-04-22T04:28:14Z"
     description: Operator for managing deployment of account-iam service.
     features.operators.openshift.io/disconnected: "true"
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
@@ -125,7 +125,7 @@ spec:
                 - name: RELATED_IMAGE_INSTANCE_MANAGEMENT_SERVICE
                   value: icr.io/cpopen/cpfs/instance_management_service:1.0.0
                 image: icr.io/cpopen/ibm-user-management-operator:latest
-                imagePullPolicy: Always
+                imagePullPolicy: IfNotPresent
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -340,6 +340,17 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - operator.ibm.com
+          resources:
+          - commonservices
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - operator.ibm.com
           resources:

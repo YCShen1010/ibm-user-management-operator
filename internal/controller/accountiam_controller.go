@@ -167,6 +167,7 @@ var UIBootstrapData UIBootstrapTemplate
 //+kubebuilder:rbac:groups=cert-manager.io,namespace="placeholder",resources=issuers;certificates,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",namespace="placeholder",resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=coordination.k8s.io,namespace="placeholder",resources=leases,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=operator.ibm.com,namespace="placeholder",resources=commonservices,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -637,8 +638,8 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		return err
 	}
 
-	// Update issuer in platform-auth-idp configmap
-	klog.Infof("Updating platform-auth-idp configmap")
+	// Retrive issuer in platform-auth-idp configmap
+	klog.Infof("Retrive platform-auth-idp configmap")
 	idpconfig := &corev1.ConfigMap{}
 	if err := r.Get(ctx, client.ObjectKey{Name: resources.IMPlatformCM, Namespace: instance.Namespace}, idpconfig); err != nil {
 		klog.Errorf("Failed to get configmap %s in namespace %s: %v", resources.IMPlatformCM, instance.Namespace, err)
@@ -650,10 +651,15 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		return nil // Skip the update as the value is already set
 	}
 
-	idpconfig.Data["OIDC_ISSUER_URL"] = IntegrationData.DefaultIDPValue
-	if err := r.Update(ctx, idpconfig); err != nil {
-		klog.Errorf("Failed to update ConfigMap platform-auth-idp in namespace %s: %v", instance.Namespace, err)
-		return err
+	// Update issuer in CommonService CR
+	if err := r.configureIssuerViaCS(ctx); err != nil {
+		klog.Errorf("Failed to update issuer in CommonService CR: %v", err)
+	}
+
+	// Wait for issuer to be updated in platform-auth-idp configmap
+	klog.Infof("Waiting for issuer to be updated in platform-auth-idp configmap")
+	if err := r.waitForIssuerinCM(ctx, instance.Namespace); err != nil {
+		klog.Errorf("Failed to wait for issuer in platform-auth-idp configmap: %v", err)
 	}
 
 	// Delete the platform-auth-service and platform-identity-provider pod to restart it
@@ -748,6 +754,158 @@ func (r *AccountIAMReconciler) getPodName(ctx context.Context, namespace, label 
 		return "", fmt.Errorf("no pod found with label %s in namespace %s", labelSelector, namespace)
 	}
 	return podList.Items[0].Name, nil
+}
+
+func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context) error {
+	// Update issuer in CommonService CR
+	klog.Infof("Updating issuer in CommonService CR")
+	commonService := &unstructured.Unstructured{}
+	commonService.SetAPIVersion("operator.ibm.com/v3")
+	commonService.SetKind("CommonService")
+
+	if err := r.Get(ctx, client.ObjectKey{Name: "common-service", Namespace: utils.GetOperatorNamespace()}, commonService); err != nil {
+		klog.Errorf("Failed to get CommonService CR %s/%s: %v", utils.GetOperatorNamespace(), "common-service", err)
+		return err
+	}
+
+	// Extract the services array
+	services, found, err := unstructured.NestedSlice(commonService.Object, "spec", "services")
+	if err != nil {
+		return fmt.Errorf("failed to get services from CommonService CR %s/%s: %v", utils.GetOperatorNamespace(), "common-service", err)
+	} else if !found {
+		services = []interface{}{}
+	}
+
+	// Find the ibm-im-operator service
+	imServiceIndex := -1
+	for i, service := range services {
+		serviceMap, ok := service.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		name, ok := serviceMap["name"].(string)
+		if ok && name == "ibm-im-operator" {
+			imServiceIndex = i
+			break
+		}
+	}
+
+	// Track if we need to update the CR
+	needsUpdate := false
+
+	// If ibm-im-operator service not found, append it
+	if imServiceIndex == -1 {
+		klog.Infof("Adding ibm-im-operator service to CommonService CR %s/%s", utils.GetOperatorNamespace(), "common-service")
+		imService := map[string]interface{}{
+			"name": "ibm-im-operator",
+			"spec": map[string]interface{}{
+				"authentication": map[string]interface{}{
+					"config": map[string]interface{}{
+						"oidcIssuerURL": IntegrationData.DefaultIDPValue,
+					},
+				},
+			},
+		}
+		services = append(services, imService)
+		needsUpdate = true
+	} else {
+		// Update existing service
+		serviceMap := services[imServiceIndex].(map[string]interface{})
+
+		// Get or create the necessary nested maps
+		spec, ok := serviceMap["spec"].(map[string]interface{})
+		if !ok {
+			spec = map[string]interface{}{}
+			serviceMap["spec"] = spec
+			needsUpdate = true
+		}
+
+		auth, ok := spec["authentication"].(map[string]interface{})
+		if !ok {
+			auth = map[string]interface{}{}
+			spec["authentication"] = auth
+			needsUpdate = true
+		}
+
+		config, ok := auth["config"].(map[string]interface{})
+		if !ok {
+			config = map[string]interface{}{}
+			auth["config"] = config
+			needsUpdate = true
+		}
+
+		// Check if the value needs to be updated
+		currentURL, ok := config["oidcIssuerURL"].(string)
+		if !ok || currentURL != IntegrationData.DefaultIDPValue {
+			klog.Infof("Updating oidcIssuerURL from %s to %s", currentURL, IntegrationData.DefaultIDPValue)
+			config["oidcIssuerURL"] = IntegrationData.DefaultIDPValue
+			needsUpdate = true
+		} else {
+			klog.Infof("CommonService CR %s/%s already has the desired oidcIssuerURL: %s", utils.GetOperatorNamespace(), "common-service", currentURL)
+		}
+
+		// Update the nested maps back up the chain
+		auth["config"] = config
+		spec["authentication"] = auth
+		serviceMap["spec"] = spec
+		services[imServiceIndex] = serviceMap
+	}
+
+	// Only update if changes were made
+	if needsUpdate {
+		if err := unstructured.SetNestedSlice(commonService.Object, services, "spec", "services"); err != nil {
+			klog.Errorf("Failed to update services in CommonService CR %s/%s: %v", utils.GetOperatorNamespace(), "common-service", err)
+			return err
+		}
+		if err := r.Update(ctx, commonService); err != nil {
+			klog.Errorf("Failed to update CommonService CR %s/%s: %v", utils.GetOperatorNamespace(), "common-service", err)
+			return err
+		}
+		klog.Infof("Successfully updated oidcIssuerURL in CommonService CR %s/%s", utils.GetOperatorNamespace(), "common-service")
+	}
+	return nil
+}
+
+func (r *AccountIAMReconciler) waitForIssuerinCM(ctx context.Context, ns string) error {
+	timeout := time.After(5 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return errors.New("timeout waiting for OIDC_ISSUER_URL to be updated in platform-auth-idp ConfigMap")
+		case <-ticker.C:
+			// Check if the ConfigMap has been updated
+			configMap := &corev1.ConfigMap{}
+			if err := r.Get(ctx, types.NamespacedName{
+				Namespace: ns,
+				Name:      "platform-auth-idp",
+			}, configMap); err != nil {
+				if k8serrors.IsNotFound(err) {
+					klog.V(2).Infof("platform-auth-idp ConfigMap not found yet, waiting...")
+					continue
+				}
+				klog.Errorf("Error getting platform-auth-idp ConfigMap: %v", err)
+				continue
+			}
+
+			// Check if the OIDC_ISSUER_URL field has been updated
+			if issuerURL, ok := configMap.Data["OIDC_ISSUER_URL"]; ok {
+				if issuerURL == IntegrationData.DefaultIDPValue {
+					klog.Infof("OIDC_ISSUER_URL successfully updated to %s in platform-auth-idp ConfigMap", issuerURL)
+					goto endWait
+				}
+				klog.V(2).Infof("OIDC_ISSUER_URL in ConfigMap is %s, waiting for %s...",
+					issuerURL, IntegrationData.DefaultIDPValue)
+			} else {
+				klog.V(2).Infof("OIDC_ISSUER_URL field not found in ConfigMap %s/%s, waiting...", ns, "platform-auth-idp")
+			}
+		}
+	}
+endWait:
+	return nil
 }
 
 // -------------- Reconcile resources helper functions done --------------
