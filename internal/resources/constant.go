@@ -61,6 +61,8 @@ const (
 	CreateDBJob = "create-account-iam-db"
 	// DBMigrationJob is the name of the database migration job
 	DBMigrationJob = "account-iam-db-migration-mcspid"
+	// AccountIAMDBSecret is the name of the secret for Account IAM database
+	AccountIAMDBSecret = "account-iam-database-secret"
 	// AccountIAMCACert is the name of the Account IAM CA certificate and secret
 	AccountIAMCACert = "account-iam-ca-cert"
 	// AccountIAMSVCCert is the name of the Account IAM service certificate and secret
