@@ -118,6 +118,9 @@ type UIBootstrapTemplate struct {
 	CertDir                     string
 	ConfigEnv                   string
 	RedisHost                   string
+	RedisPort                   string
+	RedisUsername               string
+	RedisPassword               string
 	AccountAPI                  string
 	ProductAPI                  string
 	MeteringAPI                 string
@@ -1063,7 +1066,17 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		klog.Errorf("Failed to get secret %s in namespace %s: %v", resources.Rediscp, instance.Namespace, err)
 		return err
 	}
-	redisURlssl = utils.InsertColonInURL(redisURlssl)
+	redisHostname, redisPort, err := utils.GetRedisInfo(redisURlssl)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return err
+	}
+
+	redisPassword, err := utils.GetSecretData(ctx, r.Client, resources.Rediscp, instance.Namespace, resources.RedisPassword)
+	if err != nil {
+		klog.Errorf("Failed to get redis password from secret %s in namespace %s: %v", resources.Rediscp, instance.Namespace, err)
+		return err
+	}
 
 	// get Redis Certificate Authority
 	caCRT, err := utils.GetSecretData(ctx, r.Client, resources.RedisCACert, instance.Namespace, resources.CAKey)
@@ -1093,7 +1106,9 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		ClientID:                   string(decodedClientID),
 		ClientSecret:               string(decodedClientSecret),
 		IAMGlobalAPIKey:            string(apiKey),
-		RedisHost:                  redisURlssl,
+		RedisHost:                  redisHostname,
+		RedisPort:                  redisPort,
+		RedisPassword:              redisPassword,
 		RedisCA:                    caCRT,
 		SessionSecret:              string(SessionSecret[0]),
 		DeploymentCloud:            "IBM_CLOUD",

@@ -85,11 +85,11 @@ spec:
         - name: RELATED_IMAGE_ACCOUNT_IAM
           value: icr.io/cpopen/cpfs/account-iam:1.0.0
         - name: RELATED_IMAGE_MCSP_IM_CONFIG_JOB
-          value: icr.io/cpopen/cpfs/mcsp-im-config-job:1.0.0 
+          value: icr.io/cpopen/cpfs/mcsp-im-config-job:1.0.0
         - name: RELATED_IMAGE_API_SERVICE
           value: icr.io/cpopen/cpfs/api_service:1.0.0
-        - name: RELATED_IMAGE_INSTANCE_MANAGEMENT_SERVICE
-          value: icr.io/cpopen/cpfs/instance_management_service:1.0.0
+        - name: RELATED_IMAGE_ACCOUNT_SERVICE
+          value: icr.io/cpopen/cpfs/account_service:1.0.0
         args:
         - --leader-elect
         image: controller:latest

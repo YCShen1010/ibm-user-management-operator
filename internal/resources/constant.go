@@ -39,6 +39,8 @@ const (
 	RedisVersion = "v1"
 	//RedisURLssl
 	RedisURLssl = "redis-url-ssl"
+	//RedisPassword
+	RedisPassword = "auth"
 	// RedisCert is the name of Redis CA Certificate and secret
 	RedisCACert = "account-iam-ui-redis-ca-cert"
 	// RedisCert is the name of Redis service Certificate and secret

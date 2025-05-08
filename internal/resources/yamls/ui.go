@@ -92,18 +92,18 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: 'account-iam-ui-instance-service'
-  name: 'account-iam-ui-instance-service'
+    app: 'account-iam-ui-account-service'
+  name: 'account-iam-ui-account-service'
   annotations:
-    service.beta.openshift.io/serving-cert-secret-name: 'account-iam-ui-instance-server-tls'
+    service.beta.openshift.io/serving-cert-secret-name: 'account-iam-ui-account-server-tls'
 spec:
   ports:
     - name: https
-      port: 3005
+      port: 3003
       protocol: TCP
-      targetPort: 3005
+      targetPort: 3003
   selector:
-    app: 'account-iam-ui-instance-service-instance'
+    app: 'account-iam-ui-account-service-instance'
 `
 
 var ConfigUI = `
@@ -140,6 +140,10 @@ metadata:
 stringData:
   .env: |-
     REDIS_CA={{ .RedisCA }}
+    REDIS_HOST={{ .RedisHost }}
+    REDIS_PORT={{ .RedisPort }}
+    REDIS_USERNAME=default
+    REDIS_PASSWORD={{ .RedisPassword }}
     CLIENT_ID={{ .ClientID }}
     CLIENT_SECRET={{ .ClientSecret }}
     DISABLE_REDIS={{ .DisableRedis }}
@@ -156,7 +160,7 @@ stringData:
     BASE_URL=https://{{ .Hostname }}
     LANDING_PAGE_URL=https://{{ .Hostname }}/landing
     AWS_PROVISIONING_URL={{ .AWSProvisioningURL }}
-    LOGIN_PAGE_URL=https://{{ .Hostname }}/auth/login
+    LOGIN_PAGE_URL=https://{{ .Hostname }}/account/auth/login
     APOLLO_CLIENT_API_URL=https://{{ .Hostname }}/api/graphql
     ACCOUNT_PAGE_URL=https://{{ .Hostname }}/account/dashboard
     IBM_CLOUD_PROVISIONING_URL={{ .IBMCloudProvisioningURL }}
@@ -168,35 +172,34 @@ stringData:
     USAGE_SUPPORT_PRODUCT_IDS=["prod-ld7uduo5mrhuq", "waaj123e-13ee-4808-8b9c-612698bc4754", "prod-jtuzrfuxofhqq", "waaj123e-13ee-4808-8b9c-612698bc4754", ]
 
     # Instance management UI configs
-    INSTANCE_MANAGEMENT_LOGIN_ROUTE=/instance/auth/login
-    INSTANCE_MANAGEMENT_LOGIN_CALLBACK_ROUTE=/instance/auth/login/callback
-    INSTANCE_MANAGEMENT_BASE_URL=https://{{ .InstanceManagementHostname }}
-    APOLLO_CLIENT_INSTANCE_API_URL=https://{{ .InstanceManagementHostname }}/api/graphql/instance
+    ON_PREM_LOGIN_ROUTE=/account/auth/login
+    ON_PREM_LOGIN_CALLBACK_ROUTE=/account/auth/login/callback
     IM_ID_MGMT={{ .IMIDMgmt}}
     DEFAULT_ACCOUNT={{ .DefaultAccount }}
     DEFAULT_INSTANCE={{ .DefaultInstance }}
     CS_IDP_URL={{ .CSIDPURL }}
+    IS_ON_PREM=true
 `
 
 var RouteInstance = `
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: 'account-iam-ui-instance'
+  name: 'account-iam-ui-account'
   annotations:
     haproxy.router.openshift.io/timeout: 30m
 spec:
   host: {{ .InstanceManagementHostname }}
   to:
     kind: Service
-    name: 'account-iam-ui-instance-service'
+    name: 'account-iam-ui-account-service'
     weight: 100
   port:
     targetPort: https
   tls:
     termination: reencrypt
     insecureEdgeTerminationPolicy: Redirect
-  path: /instance
+  path: /account
   wildcardPolicy: None
 `
 
@@ -218,7 +221,7 @@ spec:
   tls:
     termination: reencrypt
     insecureEdgeTerminationPolicy: Redirect
-  path: /api/graphql/instance
+  path: /api/graphql
   wildcardPolicy: None
 `
 
@@ -311,11 +314,6 @@ spec:
                 configMapKeyRef:
                   name: 'account-iam-ui-config'
                   key: APOLLO_CLIENT_API_URL
-            - name: REDIS_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: 'account-iam-ui-config'
-                  key: REDIS_HOST
           volumeMounts:
             - name: 'account-iam-ui-secrets'
               mountPath: /opt/app-root/src/apps/api/.env
@@ -394,13 +392,13 @@ var DeploymentInstance = `
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: 'account-iam-ui-instance-deployment'
+  name: 'account-iam-ui-account-deployment'
   labels:
-    app: account-iam-ui-instance-service
+    app: account-iam-ui-account-service
 spec:
   selector:
     matchLabels:
-      app: 'account-iam-ui-instance-service-instance'
+      app: 'account-iam-ui-account-service-instance'
   replicas: 1
   strategy:
     type: RollingUpdate
@@ -409,15 +407,15 @@ spec:
   template:
     metadata:
       labels:
-        app: 'account-iam-ui-instance-service-instance'
+        app: 'account-iam-ui-account-service-instance'
         version: 1.2.0
     spec:
       containers:
-        - name: 'account-iam-ui-instance-service-instance'
-          image: RELATED_IMAGE_INSTANCE_MANAGEMENT_SERVICE
+        - name: 'account-iam-ui-account-service-instance'
+          image: RELATED_IMAGE_ACCOUNT_SERVICE
           imagePullPolicy: Always
           ports:
-            - containerPort: 3005
+            - containerPort: 3003
           env:
             - name: DEPLOYMENT_ENV
               valueFrom:
@@ -449,17 +447,12 @@ spec:
                 configMapKeyRef:
                   name: 'account-iam-ui-config'
                   key: APOLLO_CLIENT_API_URL
-            - name: REDIS_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: 'account-iam-ui-config'
-                  key: REDIS_HOST
           volumeMounts:
             - name: 'account-iam-ui-secrets'
-              mountPath: /opt/app-root/src/apps/instance/.env
+              mountPath: /opt/app-root/src/apps/account/.env
               readOnly: true
               subPath: .env
-            - name: 'account-iam-ui-instance-server-tls'
+            - name: 'account-iam-ui-account-server-tls'
               mountPath: /opt/app-root/src/security
               readOnly: true
             - name: tls
@@ -484,14 +477,14 @@ spec:
                 - ALL
           livenessProbe:
             httpGet:
-              port: 3005
+              port: 3003
               scheme: HTTPS
               path: /healthz/liveness
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              port: 3005
+              port: 3003
               scheme: HTTPS
               path: /healthz/readiness
             periodSeconds: 10
@@ -501,9 +494,9 @@ spec:
         - name: 'account-iam-ui-secrets'
           secret:
             secretName: 'account-iam-ui-secrets'
-        - name: 'account-iam-ui-instance-server-tls'
+        - name: 'account-iam-ui-account-server-tls'
           secret:
-            secretName: 'account-iam-ui-instance-server-tls'
+            secretName: 'account-iam-ui-account-server-tls'
         - name: tls
           configMap:
             name: openshift-service-ca.crt
