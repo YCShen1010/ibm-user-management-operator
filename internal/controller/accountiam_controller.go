@@ -64,16 +64,16 @@ type AccountIAMReconciler struct {
 
 // BootstrapSecret stores all the bootstrap secret data
 type BootstrapSecret struct {
-	Realm               string
-	ClientID            string
-	ClientSecret        string
-	PGPassword          string
-	DefaultAUDValue     string
-	DefaultRealmValue   string
-	SREMCSPGroupsToken  string
-	GlobalRealmValue    string
-	GlobalAccountAud    string
-	UserValidationAPIV2 string
+	Realm               string `json:"realm,omitempty"`
+	ClientID            string `json:"clientID,omitempty"`
+	ClientSecret        string `json:"clientSecret,omitempty"`
+	PGPassword          string `json:"pgPassword,omitempty"`
+	DefaultAUDValue     string `json:"defaultAUDValue,omitempty"`
+	DefaultRealmValue   string `json:"defaultRealmValue,omitempty"`
+	SREMCSPGroupsToken  string `json:"sremcspGroupsToken,omitempty"`
+	GlobalRealmValue    string `json:"globalRealmValue,omitempty"`
+	GlobalAccountAud    string `json:"globalAccountAud,omitempty"`
+	UserValidationAPIV2 string `json:"userValidationAPIV2,omitempty"`
 }
 
 var BootstrapData BootstrapSecret
@@ -424,16 +424,16 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 				Namespace: ns,
 			},
 			Data: map[string][]byte{
-				"Realm":               []byte("PrimaryRealm"),
-				"ClientID":            clinetID,
-				"ClientSecret":        clientSecret,
-				"UserValidationAPIV2": []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
-				"DefaultAUDValue":     clinetID,
-				"DefaultRealmValue":   []byte("PrimaryRealm"),
-				"SREMCSPGroupsToken":  []byte("mcsp-im-integration-admin"),
-				"GlobalRealmValue":    []byte("PrimaryRealm"),
-				"GlobalAccountAud":    clinetID,
-				"PGPassword":          pg,
+				"realm":               []byte("PrimaryRealm"),
+				"clientID":            clinetID,
+				"clientSecret":        clientSecret,
+				"userValidationAPIV2": []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
+				"defaultAUDValue":     clinetID,
+				"defaultRealmValue":   []byte("PrimaryRealm"),
+				"sremcspGroupsToken":  []byte("mcsp-im-integration-admin"),
+				"globalRealmValue":    []byte("PrimaryRealm"),
+				"globalAccountAud":    clinetID,
+				"pgPassword":          pg,
 			},
 			Type: corev1.SecretTypeOpaque,
 		}
