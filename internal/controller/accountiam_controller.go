@@ -35,7 +35,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -697,40 +696,23 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		return err
 	}
 
-	// Retrive issuer in platform-auth-idp configmap
-	klog.Infof("Retrive platform-auth-idp configmap")
-	idpconfig := &corev1.ConfigMap{}
-	if err := r.Get(ctx, client.ObjectKey{Name: resources.IMPlatformCM, Namespace: instance.Namespace}, idpconfig); err != nil {
-		klog.Errorf("Failed to get configmap %s in namespace %s: %v", resources.IMPlatformCM, instance.Namespace, err)
-		return err
-	}
-
-	if idpconfig.Data["OIDC_ISSUER_URL"] == IntegrationData.DefaultIDPValue {
-		klog.Infof("ConfigMap platform-auth-idp already has the desired value for OIDC_ISSUER_URL: %s", idpconfig.Data["OIDC_ISSUER_URL"])
-		return nil // Skip the update as the value is already set
-	}
-
-	// Update issuer in CommonService CR
+	// Ensure the CommonService CR is configured to set the desired OIDC issuer URL.
+	// This is the trigger for the platform-auth-idp ConfigMap to be updated by IM operator.
+	klog.Infof("Ensuring OIDC issuer URL is configured in CommonService CR")
 	if err := r.configureIssuerViaCS(ctx); err != nil {
-		klog.Errorf("Failed to update issuer in CommonService CR: %v", err)
+		klog.Errorf("Failed to configure OIDC issuer URL in CommonService CR: %v", err)
+		return fmt.Errorf("failed to configure issuer via CommonService CR: %w", err)
 	}
 
-	// Wait for issuer to be updated in platform-auth-idp configmap
-	klog.Infof("Waiting for issuer to be updated in platform-auth-idp configmap")
+	// Wait for the OIDC_ISSUER_URL to be updated in the platform-auth-idp ConfigMap.
+	// The waitForIssuerinCM function will fetch the configmap and check the OIDC_ISSUER_URL.
+	klog.Infof("Waiting for OIDC_ISSUER_URL to be updated in platform-auth-idp ConfigMap")
 	if err := r.waitForIssuerinCM(ctx, instance.Namespace); err != nil {
-		klog.Errorf("Failed to wait for issuer in platform-auth-idp configmap: %v", err)
+		klog.Errorf("Failed to wait for OIDC_ISSUER_URL in platform-auth-idp ConfigMap: %v", err)
+		return fmt.Errorf("failed waiting for issuer in ConfigMap: %w", err)
 	}
 
-	// Delete the platform-auth-service and platform-identity-provider pod to restart it
-	if err := r.restartAndCheckPod(ctx, instance.Namespace, "platform-auth-service"); err != nil {
-		return err
-	}
-
-	if err := r.restartAndCheckPod(ctx, instance.Namespace, "platform-identity-provider"); err != nil {
-		return err
-	}
-
-	klog.Infof("MCSP operand resources created successfully")
+	klog.Infof("User Management operand resources created successfully")
 	return nil
 }
 
@@ -769,52 +751,6 @@ func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operato
 	}
 
 	return nil
-}
-
-func (r *AccountIAMReconciler) restartAndCheckPod(ctx context.Context, ns, label string) error {
-
-	// restart platform-auth-service pod and wait for it to be ready
-	pod, err := r.getPodName(ctx, ns, label)
-	if err != nil {
-		return err
-	}
-
-	podName := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pod,
-			Namespace: ns,
-		},
-	}
-	if err := r.Delete(ctx, podName); err != nil {
-		klog.Errorf("Failed to delete pod %s in namespace %s", label, ns)
-		return err
-	}
-
-	time.Sleep(10 * time.Second)
-
-	if err := utils.WaitForDeploymentReady(ctx, r.Client, ns, label); err != nil {
-		klog.Errorf("Failed to wait for Deployment %s to be ready in namespace %s", label, ns)
-		return err
-	}
-
-	return nil
-}
-
-func (r *AccountIAMReconciler) getPodName(ctx context.Context, namespace, label string) (string, error) {
-	podList := &corev1.PodList{}
-	labelSelector := labels.SelectorFromSet(labels.Set{"app": label})
-
-	if err := r.Client.List(ctx, podList, &client.ListOptions{
-		Namespace:     namespace,
-		LabelSelector: labelSelector,
-	}); err != nil {
-		return "", err
-	}
-
-	if len(podList.Items) == 0 {
-		return "", fmt.Errorf("no pod found with label %s in namespace %s", labelSelector, namespace)
-	}
-	return podList.Items[0].Name, nil
 }
 
 func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context) error {
