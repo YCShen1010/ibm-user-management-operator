@@ -49,10 +49,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var (
-	ImageList = []string{"RELATED_IMAGE_MCSP_UTILS", "RELATED_IMAGE_ACCOUNT_IAM", "RELATED_IMAGE_MCSP_IM_CONFIG_JOB", "RELATED_IMAGE_ACCOUNT_SERVICE", "RELATED_IMAGE_API_SERVICE"}
-)
-
 // GetOperatorNamespace returns the Namespace of the operator
 func GetOperatorNamespace() string {
 	ns, found := os.LookupEnv("OPERATOR_NAMESPACE")
@@ -142,19 +138,6 @@ func GetHost(ctx context.Context, k8sClient client.Client, name string, ns strin
 
 func Concat(s ...string) string {
 	return strings.Join(s, "")
-}
-
-func ReplaceImages(resource string) (result string) {
-	result = resource
-	for _, imageName := range ImageList {
-		result = strings.ReplaceAll(result, imageName, GetImage(imageName))
-	}
-	return result
-}
-
-func GetImage(imageName string) string {
-	image, _ := os.LookupEnv(imageName)
-	return image
 }
 
 // GetSecretData gets the data from a secret

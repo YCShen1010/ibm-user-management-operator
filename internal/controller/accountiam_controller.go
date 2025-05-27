@@ -48,7 +48,8 @@ import (
 	operatorv1alpha1 "github.com/IBM/ibm-user-management-operator/api/v1alpha1"
 	"github.com/IBM/ibm-user-management-operator/internal/controller/utils"
 	"github.com/IBM/ibm-user-management-operator/internal/resources"
-	res "github.com/IBM/ibm-user-management-operator/internal/resources/yamls"
+	"github.com/IBM/ibm-user-management-operator/internal/resources/images"
+	"github.com/IBM/ibm-user-management-operator/internal/resources/yamls"
 	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
 	"github.com/ghodss/yaml"
 )
@@ -366,7 +367,7 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 	}
 
 	klog.Infof("Creating Redis certificate")
-	for _, v := range res.REDIS_CERTS {
+	for _, v := range yamls.REDIS_CERTS {
 		object := &unstructured.Unstructured{}
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
@@ -388,7 +389,7 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 		RedisCRVersion: "1.2.0",
 	}
 
-	if err := r.injectData(ctx, instance, []string{res.RedisCRTemplate}, redisCRData); err != nil {
+	if err := r.injectData(ctx, instance, []string{yamls.RedisCRTemplate}, redisCRData); err != nil {
 		klog.Errorf("Failed to create Redis CR: %v", err)
 		return err
 	}
@@ -563,7 +564,7 @@ func (r *AccountIAMReconciler) cleanJob(ctx context.Context, jobs []string, ns s
 func (r *AccountIAMReconciler) createOperandRBAC(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 	klog.Infof("Creating or updating RBAC for user-mgmt operand")
 
-	for _, v := range res.OperandRBACs {
+	for _, v := range yamls.OperandRBACs {
 		object := &unstructured.Unstructured{}
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
@@ -590,7 +591,7 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	// TODO: will need to find a better place to initialize the database
 	klog.Infof("Applying DB Bootstrap Job")
 	object := &unstructured.Unstructured{}
-	resource := utils.ReplaceImages(res.DB_BOOTSTRAP_JOB)
+	resource := images.ReplaceInYAML(yamls.DB_BOOTSTRAP_JOB)
 	manifest := []byte(resource)
 	if err := yaml.Unmarshal(manifest, object); err != nil {
 		return err
@@ -634,15 +635,19 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		IntegrationData.CurrentEncryptionKeyNum = base64.StdEncoding.EncodeToString([]byte(IntegrationData.CurrentEncryptionKeyNum))
 	}
 
-	if err := r.injectData(ctx, instance, append(res.APP_SECRETS, res.IM_INTEGRATION_YAMLS...), BootstrapData, IntegrationData); err != nil {
+	if err := r.injectData(ctx, instance, append(yamls.APP_SECRETS, yamls.IM_INTEGRATION_YAMLS...), BootstrapData, IntegrationData); err != nil {
 		return err
 	}
 
 	// static manifests which do not change
 	klog.Infof("Creating MCSP static yamls")
-	for _, v := range res.APP_STATIC_YAMLS {
+	for _, v := range yamls.APP_STATIC_YAMLS {
 		object := &unstructured.Unstructured{}
-		v = utils.ReplaceImages(v)
+
+		if images.ContainsImageReferences(v) {
+			v = images.ReplaceInYAML(v)
+		}
+
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
 			return err
@@ -657,10 +662,13 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	}
 
 	klog.Infof("Creating Account IAM yamls")
-	for _, v := range res.ACCOUNT_IAM_RES {
+	for _, v := range yamls.ACCOUNT_IAM_RES {
 		object := &unstructured.Unstructured{}
 		v = strings.ReplaceAll(v, "${NAMESPACE}", instance.Namespace)
-		v = utils.ReplaceImages(v)
+		if images.ContainsImageReferences(v) {
+			v = images.ReplaceInYAML(v)
+		}
+
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
 			return err
@@ -685,7 +693,7 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 		CAcert: utils.IndentCert(caCRT, 6),
 	}
 
-	if err := r.injectData(ctx, instance, res.ACCOUNT_IAM_ROUTE_RES, RouteData); err != nil {
+	if err := r.injectData(ctx, instance, yamls.ACCOUNT_IAM_ROUTE_RES, RouteData); err != nil {
 		return err
 	}
 
@@ -737,8 +745,10 @@ func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operato
 		object := &unstructured.Unstructured{}
 		buffer.Reset()
 
-		// Parse the manifest template and execute it with the provided data
-		manifest = utils.ReplaceImages(manifest)
+		if images.ContainsImageReferences(manifest) {
+			manifest = images.ReplaceInYAML(manifest)
+		}
+
 		t := template.Must(template.New("template resources").Parse(manifest))
 		if err := t.Execute(&buffer, combinedData); err != nil {
 			return err
@@ -967,7 +977,7 @@ func (r *AccountIAMReconciler) configIM(ctx context.Context, instance *operatorv
 
 	klog.Infof("Applying IM Config Job")
 
-	if err := r.injectData(ctx, instance, res.IMConfigYamls, IntegrationData); err != nil {
+	if err := r.injectData(ctx, instance, yamls.IMConfigYamls, IntegrationData); err != nil {
 		return err
 	}
 
@@ -992,7 +1002,7 @@ func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, instance *operat
 	object := &unstructured.Unstructured{}
 	tmpl := template.New("template for injecting data into YAMLs")
 	var tmplWriter bytes.Buffer
-	for _, v := range res.TemplateYamlsUI {
+	for _, v := range yamls.TemplateYamlsUI {
 		manifest := v
 		tmplWriter.Reset()
 
@@ -1017,9 +1027,13 @@ func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, instance *operat
 	}
 
 	klog.Infof("Creating static yamls for UI")
-	for _, v := range res.StaticYamlsUI {
+	for _, v := range yamls.StaticYamlsUI {
 		object := &unstructured.Unstructured{}
-		v = utils.ReplaceImages(v)
+
+		if images.ContainsImageReferences(v) {
+			v = images.ReplaceInYAML(v)
+		}
+
 		manifest := []byte(v)
 		if err := yaml.Unmarshal(manifest, object); err != nil {
 			return err
