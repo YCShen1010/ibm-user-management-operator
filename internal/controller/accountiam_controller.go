@@ -385,7 +385,7 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 	klog.Infof("Redis CRD exists, creating Redis CR %s in namespace %s", resources.Rediscp, instance.Namespace)
 	redisCRData := RedisCRParams{
 		RedisCRSize:    3,
-		RedisCRVersion: "1.2.0",
+		RedisCRVersion: "1.2.8",
 	}
 
 	if err := r.injectData(ctx, instance, []string{yamls.RedisCRTemplate}, redisCRData); err != nil {
