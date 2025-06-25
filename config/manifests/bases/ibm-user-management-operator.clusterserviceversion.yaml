@@ -10,6 +10,7 @@ metadata:
     description: Operator for managing deployment of account-iam service.
     features.operators.openshift.io/disconnected: "true"
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
+    nss.operator.ibm.com/managed-webhooks: ""
     olm.skipRange: <1.0.0
     support: IBM
   labels:

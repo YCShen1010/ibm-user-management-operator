@@ -44,6 +44,9 @@ import (
 	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
 	olmapi "github.com/operator-framework/api/pkg/operators/v1"
 
+	operatorv1alpha1 "github.com/IBM/ibm-user-management-operator/api/v1alpha1"
+	"github.com/IBM/ibm-user-management-operator/internal/controller"
+
 	//+kubebuilder:scaffold:imports
 
 	utils "github.com/IBM/ibm-user-management-operator/internal/controller/utils"
@@ -160,6 +163,12 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AccountIAM")
 		os.Exit(1)
+	}
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&operatorv1alpha1.AccountIAM{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "AccountIAM")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 

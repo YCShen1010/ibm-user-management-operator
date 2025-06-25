@@ -28,6 +28,7 @@ metadata:
     description: Operator for managing deployment of account-iam service.
     features.operators.openshift.io/disconnected: "true"
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
+    nss.operator.ibm.com/managed-webhooks: ""
     olm.skipRange: <1.0.0
     operators.operatorframework.io/builder: operator-sdk-v1.34.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
@@ -133,6 +134,10 @@ spec:
                   initialDelaySeconds: 15
                   periodSeconds: 20
                 name: manager
+                ports:
+                - containerPort: 9443
+                  name: webhook-server
+                  protocol: TCP
                 readinessProbe:
                   httpGet:
                     path: /readyz
@@ -153,12 +158,21 @@ spec:
                     - ALL
                   seccompProfile:
                     type: RuntimeDefault
+                volumeMounts:
+                - mountPath: /tmp/k8s-webhook-server/serving-certs
+                  name: cert
+                  readOnly: true
               securityContext:
                 runAsNonRoot: true
                 seccompProfile:
                   type: RuntimeDefault
               serviceAccountName: ibm-user-management-operator-controller-manager
               terminationGracePeriodSeconds: 10
+              volumes:
+              - name: cert
+                secret:
+                  defaultMode: 420
+                  secretName: webhook-server-cert
       permissions:
       - rules:
         - apiGroups:
@@ -447,3 +461,24 @@ spec:
   - image: icr.io/cpopen/cpfs/account_service:1.0.0
     name: account-management-service
   version: 1.0.0
+  webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: ibm-user-management-operator-controller-manager
+    failurePolicy: Fail
+    generateName: vaccountiam.kb.io
+    rules:
+    - apiGroups:
+      - operator.ibm.com
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - accountiams
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-operator-ibm-com-v1alpha1-accountiam
