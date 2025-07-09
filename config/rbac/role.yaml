@@ -185,6 +185,32 @@ rules:
   - list
   - watch
 - apiGroups:
+  - operator.ibm.com
+  resources:
+  - roleactionconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.ibm.com
+  resources:
+  - roleactionconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - operator.ibm.com
+  resources:
+  - roleactionconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - rbac.authorization.k8s.io
   resources:
   - rolebindings

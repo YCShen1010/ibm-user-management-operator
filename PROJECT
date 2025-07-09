@@ -24,4 +24,13 @@ resources:
     defaulting: true
     validation: true
     webhookVersion: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: ibm.com
+  group: operator
+  kind: RoleActionConfig
+  path: github.com/IBM/ibm-user-management-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

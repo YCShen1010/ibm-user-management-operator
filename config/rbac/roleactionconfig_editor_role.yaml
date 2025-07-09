@@ -1,0 +1,27 @@
+# permissions for end users to edit roleactionconfigs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: ibm-user-management-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: roleactionconfig-editor-role
+rules:
+- apiGroups:
+  - operator.ibm.com
+  resources:
+  - roleactionconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.ibm.com
+  resources:
+  - roleactionconfigs/status
+  verbs:
+  - get

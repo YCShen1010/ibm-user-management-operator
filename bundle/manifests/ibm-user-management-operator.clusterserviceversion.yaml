@@ -24,7 +24,7 @@ metadata:
     categories: Security
     certified: "false"
     containerImage: icr.io/cpopen/ibm-user-management-operator:latest
-    createdAt: "2025-04-22T04:28:14Z"
+    createdAt: "2025-07-09T17:50:49Z"
     description: Operator for managing deployment of account-iam service.
     features.operators.openshift.io/disconnected: "true"
     nss.operator.ibm.com/managed-operators: ibm-user-management-operator
@@ -45,6 +45,11 @@ spec:
       displayName: Account IAM
       kind: AccountIAM
       name: accountiams.operator.ibm.com
+      version: v1alpha1
+    - description: RoleActionConfig is the Schema for the roleactionconfigs API
+      displayName: Role Action Config
+      kind: RoleActionConfig
+      name: roleactionconfigs.operator.ibm.com
       version: v1alpha1
   description: You can use IBM User Management Operator to install the Account IAM
     services to manage user access to IBM services
@@ -375,6 +380,32 @@ spec:
           - list
           - watch
         - apiGroups:
+          - operator.ibm.com
+          resources:
+          - roleactionconfigs
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - operator.ibm.com
+          resources:
+          - roleactionconfigs/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - operator.ibm.com
+          resources:
+          - roleactionconfigs/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - rbac.authorization.k8s.io
           resources:
           - rolebindings
@@ -459,7 +490,7 @@ spec:
   - image: icr.io/cpopen/cpfs/api_service:1.0.0
     name: api-service
   - image: icr.io/cpopen/cpfs/account_service:1.0.0
-    name: account-management-service
+    name: account-service
   version: 1.0.0
   webhookdefinitions:
   - admissionReviewVersions:

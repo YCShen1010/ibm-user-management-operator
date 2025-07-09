@@ -1,0 +1,9 @@
+apiVersion: operator.ibm.com/v1alpha1
+kind: RoleActionConfig
+metadata:
+  labels:
+    app.kubernetes.io/name: ibm-user-management-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: roleactionconfig-sample
+spec:
+  # TODO(user): Add fields here

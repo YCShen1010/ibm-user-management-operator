@@ -26,6 +26,11 @@ spec:
       kind: AccountIAM
       name: accountiams.operator.ibm.com
       version: v1alpha1
+    - description: RoleActionConfig is the Schema for the roleactionconfigs API
+      displayName: Role Action Config
+      kind: RoleActionConfig
+      name: roleactionconfigs.operator.ibm.com
+      version: v1alpha1
   description: You can use IBM User Management Operator to install the Account IAM
     services to manage user access to IBM services
   displayName: IBM User Management Operator

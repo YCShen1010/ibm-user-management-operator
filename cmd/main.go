@@ -38,11 +38,12 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
+	olmapi "github.com/operator-framework/api/pkg/operators/v1"
+
 	operatorv1alpha1 "github.com/IBM/ibm-user-management-operator/api/v1alpha1"
 	"github.com/IBM/ibm-user-management-operator/internal/controller"
 	"github.com/IBM/ibm-user-management-operator/internal/resources/images"
-	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
-	olmapi "github.com/operator-framework/api/pkg/operators/v1"
 
 	//+kubebuilder:scaffold:imports
 
@@ -166,6 +167,13 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "AccountIAM")
 			os.Exit(1)
 		}
+	}
+	if err = (&controller.RoleActionConfigReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "RoleActionConfig")
+		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
 
