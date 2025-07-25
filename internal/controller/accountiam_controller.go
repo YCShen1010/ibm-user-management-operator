@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"text/template"
 	"time"
@@ -199,6 +200,35 @@ func (r *AccountIAMReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	// Create a copy of the status to detect changes
+	originalStatus := instance.Status.DeepCopy()
+
+	// Defer status update for managed resources, will run even if reconcile returns early with error
+	defer func() {
+		r.updateManagedResourcesStatus(ctx, instance)
+
+		// Only update if status changed
+		if !reflect.DeepEqual(originalStatus, instance.Status) {
+
+			// Try adding a retry mechanism
+			var updateErr error
+			for i := 0; i < 3; i++ {
+				updateErr = r.Status().Update(ctx, instance)
+				if updateErr == nil {
+					klog.Infof("Successfully updated AccountIAM status after %d attempts", i+1)
+					break
+				}
+
+				klog.Errorf("Failed to update AccountIAM status (attempt %d/3): %v", i+1, updateErr)
+				time.Sleep(1 * time.Second)
+			}
+
+			if updateErr != nil {
+				klog.Errorf("All attempts to update status failed: %v", updateErr)
+			}
+		}
+	}()
+
 	if err := r.verifyPrereq(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -359,7 +389,7 @@ func (r *AccountIAMReconciler) createOperandRequest(ctx context.Context, instanc
 func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 
 	// Check if Redis CRD exists
-	if existRedis, err := utils.CheckCRD(r.Config, utils.Concat(resources.RedisAPIGroup, "/", resources.RedisVersion), resources.RedisKind); err != nil {
+	if existRedis, err := utils.CheckCRD(r.Config, utils.Concat(resources.RedisAPIGroup, "/", resources.Version), resources.RedisKind); err != nil {
 		return err
 	} else if !existRedis {
 		return errors.New("redis CRD not found")
@@ -394,7 +424,7 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 	}
 
 	// Wait for Redis CR to be ready
-	if err := utils.WaitForRediscp(ctx, r.Client, instance.Namespace, resources.Rediscp, resources.RedisAPIGroup, resources.RedisKind, resources.RedisVersion, resources.OperandStatusComp); err != nil {
+	if err := utils.WaitForRediscp(ctx, r.Client, instance.Namespace, resources.Rediscp, resources.RedisAPIGroup, resources.RedisKind, resources.Version, resources.StatusCompleted); err != nil {
 		return err
 	}
 	return nil
@@ -1162,6 +1192,107 @@ func (r *AccountIAMReconciler) createOrUpdate(ctx context.Context, obj *unstruct
 	}
 
 	return nil
+}
+
+// updateManagedResourcesStatus updates the status field of the AccountIAM CR
+// with information about all the resources it manages
+func (r *AccountIAMReconciler) updateManagedResourcesStatus(ctx context.Context, instance *operatorv1alpha1.AccountIAM) {
+
+	// Create a direct AccountIAM service status
+	accountIAMService := odlm.OperandStatus{
+		ObjectName: instance.Name,
+		Kind:       resources.UserMgmtCR,
+		APIVersion: resources.OperatorIBMApiVersion,
+		Namespace:  instance.Namespace,
+		Status:     resources.PhaseRunning, // Default to running, will update if any resource is not ready
+	}
+
+	var managedResources []odlm.ResourceStatus
+	allResourcesReady := true
+
+	// Check Redis status
+	redisResource, redisReady := utils.GetRedisResourceStatus(ctx, r.Client, instance.Namespace)
+	managedResources = append(managedResources, redisResource)
+	if !redisReady {
+		allResourcesReady = false
+	}
+
+	// Check OperandRequest status
+	operandResource, operandReady := utils.GetOperandRequestStatus(ctx, r.Client, instance.Namespace)
+	managedResources = append(managedResources, operandResource)
+	if !operandReady {
+		allResourcesReady = false
+	}
+
+	// Check job statuses
+	jobsToCheck := []string{resources.CreateDBJob, resources.DBMigrationJob, resources.IMConfigJob}
+	for _, jobName := range jobsToCheck {
+		jobResource, jobReady := utils.GetJobStatus(ctx, r.Client, jobName, instance.Namespace)
+		managedResources = append(managedResources, jobResource)
+		if !jobReady {
+			allResourcesReady = false
+		}
+	}
+
+	// Check service statuses
+	servicesToCheck := []string{
+		resources.AccountIAM,
+		resources.AccountIAMUIService,
+		resources.AccountIAMUIAPIService,
+	}
+	for _, serviceName := range servicesToCheck {
+		serviceResource, serviceReady := utils.GetServiceStatus(ctx, r.Client, serviceName, instance.Namespace)
+		managedResources = append(managedResources, serviceResource)
+		if !serviceReady {
+			allResourcesReady = false
+		}
+	}
+
+	// Check secret statuses
+	secretsToCheck := []string{
+		resources.BootstrapSecret,
+		resources.AccountIAMDBSecret,
+		resources.AccountIAMConfigSecret,
+		resources.AccountIAMOidcClientAuth,
+		resources.AccountIAMOKDAuth,
+		resources.AccountIAMUISecrets,
+		resources.IMOIDCCrendential,
+		resources.IMAPISecret,
+		resources.AccountIAMCACert,
+	}
+	for _, secretName := range secretsToCheck {
+		secretResource, secretReady := utils.GetSecretStatus(ctx, r.Client, secretName, instance.Namespace)
+		managedResources = append(managedResources, secretResource)
+		if !secretReady {
+			allResourcesReady = false
+		}
+	}
+
+	// Check route statuses
+	routesToCheck := []string{
+		resources.AccountIAM,
+		resources.AccountIAMUIRoute,
+		resources.AccountIAMUIAPIInstance,
+	}
+	for _, routeName := range routesToCheck {
+		routeResource, routeReady := utils.GetRouteStatus(ctx, r.Client, routeName, instance.Namespace)
+		managedResources = append(managedResources, routeResource)
+		if !routeReady {
+			allResourcesReady = false
+		}
+	}
+
+	if !allResourcesReady {
+		accountIAMService.Status = resources.StatusNotReady
+	}
+
+	accountIAMService.ManagedResources = managedResources
+
+	instance.Status.Service = accountIAMService
+
+	klog.Infof("Account IAM service status: resourceCount %d, status is %s",
+		len(accountIAMService.ManagedResources), accountIAMService.Status)
+
 }
 
 // SetupWithManager sets up the controller with the Manager.

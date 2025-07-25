@@ -369,11 +369,225 @@ func checkKeyBeforeMerging(key string, defaultMap, changedMap interface{}, final
 	}
 }
 
+// ------------------ Resource Status Functions --------------
+
+// GetRedisResourceStatus checks the status of Redis resources
+func GetRedisResourceStatus(ctx context.Context, k8sClient client.Client, namespace string) (odlm.ResourceStatus, bool) {
+	redisResource := odlm.ResourceStatus{
+		ObjectName: resources.Rediscp,
+		Namespace:  namespace,
+		Kind:       resources.RedisKind,
+		APIVersion: resources.RedisAPIGroup + "/" + resources.Version,
+		Status:     resources.StatusNotReady,
+	}
+
+	redisCR := NewUnstructured(resources.RedisAPIGroup, resources.RedisKind, resources.Version)
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: resources.Rediscp, Namespace: namespace}, redisCR); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			klog.Error(err, "Failed to get Redis CR")
+			redisResource.Status = resources.StatusError
+			return redisResource, false
+		} else {
+			redisResource.Status = resources.StatusNotFound
+			return redisResource, false
+		}
+	}
+
+	status, found, err := unstructured.NestedString(redisCR.Object, "status", resources.RedisStatus)
+	if err != nil || !found {
+		redisResource.Status = resources.StatusError
+		return redisResource, false
+	} else if status == resources.StatusCompleted {
+		redisResource.Status = resources.StatusCompleted
+		return redisResource, true
+	} else {
+		redisResource.Status = resources.StatusNotReady
+		return redisResource, false
+	}
+}
+
+// GetOperandRequestStatus checks the status of OperandRequest
+func GetOperandRequestStatus(ctx context.Context, k8sClient client.Client, namespace string) (odlm.ResourceStatus, bool) {
+	umOpreqResource := odlm.ResourceStatus{
+		ObjectName: resources.UserMgmtOpreq,
+		Namespace:  namespace,
+		Kind:       resources.OpreqKind,
+		APIVersion: resources.OperatorIBMApiVersion,
+		Status:     resources.StatusNotReady,
+	}
+
+	operandReq := &odlm.OperandRequest{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: resources.UserMgmtOpreq, Namespace: namespace}, operandReq); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			klog.Error(err, "Failed to get OperandRequest %s in namespace %s", resources.UserMgmtOpreq, namespace)
+			umOpreqResource.Status = resources.StatusError
+			return umOpreqResource, false
+		} else {
+			umOpreqResource.Status = resources.StatusNotFound
+			return umOpreqResource, false
+		}
+	}
+
+	if operandReq.Status.Phase == resources.PhaseRunning {
+		umOpreqResource.Status = resources.PhaseRunning
+		return umOpreqResource, true
+	} else {
+		umOpreqResource.Status = string(operandReq.Status.Phase)
+		return umOpreqResource, false
+	}
+}
+
+// GetJobStatus checks the status of a specific job
+func GetJobStatus(ctx context.Context, k8sClient client.Client, jobName, namespace string) (odlm.ResourceStatus, bool) {
+	jobResource := odlm.ResourceStatus{
+		ObjectName: jobName,
+		Namespace:  namespace,
+		Kind:       resources.JobKind,
+		APIVersion: resources.JobAPIGroup,
+		Status:     resources.StatusNotReady,
+	}
+
+	job := &batchv1.Job{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, job); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			klog.Error(err, "Failed to get Job %s in namespace %s", jobName, namespace)
+			jobResource.Status = resources.StatusError
+			return jobResource, false
+		} else {
+			jobResource.Status = resources.StatusNotFound
+			return jobResource, false
+		}
+	}
+
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == batchv1.JobComplete && condition.Status == corev1.ConditionTrue {
+			jobResource.Status = resources.StatusCompleted
+			return jobResource, true
+		}
+		if condition.Type == batchv1.JobFailed && condition.Status == corev1.ConditionTrue {
+			jobResource.Status = resources.StatusFailed
+			return jobResource, false
+		}
+	}
+
+	// Job is still running
+	jobResource.Status = resources.PhaseRunning
+	return jobResource, false
+}
+
+// GetServiceStatus checks if a service exists and is properly configured
+func GetServiceStatus(ctx context.Context, k8sClient client.Client, serviceName, namespace string) (odlm.ResourceStatus, bool) {
+	serviceResource := odlm.ResourceStatus{
+		ObjectName: serviceName,
+		Namespace:  namespace,
+		Kind:       resources.ServiceKind,
+		APIVersion: resources.Version,
+		Status:     resources.StatusNotReady,
+	}
+
+	service := &corev1.Service{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: serviceName, Namespace: namespace}, service); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			klog.Error(err, "Failed to get Service %s in namespace %s", serviceName, namespace)
+			serviceResource.Status = resources.StatusError
+			return serviceResource, false
+		} else {
+			serviceResource.Status = resources.StatusNotFound
+			return serviceResource, false
+		}
+	}
+
+	// Check if the service has cluster IP assigned
+	if service.Spec.ClusterIP == "" || service.Spec.ClusterIP == "None" {
+		// This is a headless service which is OK
+		if service.Spec.Type == "ClusterIP" && service.Spec.ClusterIP == "None" {
+			serviceResource.Status = resources.StatusCompleted
+			return serviceResource, true
+		}
+
+		serviceResource.Status = resources.StatusNotReady
+		return serviceResource, false
+	}
+
+	// Service exists with ClusterIP, consider it ready
+	serviceResource.Status = resources.StatusCompleted
+	return serviceResource, true
+}
+
+// GetSecretStatus checks if a secret exists and is properly configured
+func GetSecretStatus(ctx context.Context, k8sClient client.Client, secretName, namespace string) (odlm.ResourceStatus, bool) {
+	secretResource := odlm.ResourceStatus{
+		ObjectName: secretName,
+		Namespace:  namespace,
+		Kind:       resources.SecretKind,
+		APIVersion: resources.Version,
+		Status:     resources.StatusNotReady,
+	}
+
+	secret := &corev1.Secret{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: secretName, Namespace: namespace}, secret); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			klog.Error(err, "Failed to get Secret %s in namespace %s", secretName, namespace)
+			secretResource.Status = resources.StatusError
+			return secretResource, false
+		} else {
+			secretResource.Status = resources.StatusNotFound
+			return secretResource, false
+		}
+	}
+
+	// Secret exists, consider it ready
+	secretResource.Status = resources.StatusCompleted
+	return secretResource, true
+}
+
+// GetRouteStatus checks if a route exists and is properly configured
+func GetRouteStatus(ctx context.Context, k8sClient client.Client, routeName, namespace string) (odlm.ResourceStatus, bool) {
+	routeResource := odlm.ResourceStatus{
+		ObjectName: routeName,
+		Namespace:  namespace,
+		Kind:       resources.RouteKind,
+		APIVersion: resources.RouteAPIGroup + "/" + resources.Version,
+		Status:     resources.StatusNotReady,
+	}
+
+	route := &routev1.Route{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: routeName, Namespace: namespace}, route); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			klog.Error(err, "Failed to get Route %s in namespace %s", routeName, namespace)
+			routeResource.Status = resources.StatusError
+			return routeResource, false
+		} else {
+			routeResource.Status = resources.StatusNotFound
+			return routeResource, false
+		}
+	}
+
+	// Check if the route has ingress
+	if len(route.Status.Ingress) == 0 {
+		routeResource.Status = resources.StatusNotReady
+		return routeResource, false
+	}
+
+	// Check if at least one ingress is admitted
+	for _, ingress := range route.Status.Ingress {
+		for _, condition := range ingress.Conditions {
+			if condition.Type == routev1.RouteAdmitted && condition.Status == corev1.ConditionTrue {
+				routeResource.Status = resources.StatusCompleted
+				return routeResource, true
+			}
+		}
+	}
+
+	routeResource.Status = resources.StatusNotReady
+	return routeResource, false
+}
+
 // -------------- Wait Functions --------------
 
 // WaitForOperatorReady check operator status in OperandRequest
 func WaitForOperatorReady(ctx context.Context, k8sClient client.Client, opreqName, ns string) error {
-	return wait.PollImmediate(30*time.Second, 10*time.Minute, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, false, func(ctx context.Context) (bool, error) {
 		operandRequest := &odlm.OperandRequest{}
 		if err := k8sClient.Get(ctx, client.ObjectKey{Name: opreqName, Namespace: ns}, operandRequest); err != nil {
 			if k8serrors.IsNotFound(err) {
@@ -384,9 +598,9 @@ func WaitForOperatorReady(ctx context.Context, k8sClient client.Client, opreqNam
 			return false, err
 		}
 
-		klog.Infof("Waiting for all operators to be %s...", resources.OpreqPhaseRunning)
+		klog.Infof("Waiting for all operators to be %s...", resources.PhaseRunning)
 
-		if operandRequest.Status.Phase == resources.OpreqPhaseRunning {
+		if operandRequest.Status.Phase == resources.PhaseRunning {
 			klog.Infof("All operators are running in namespace %s.", ns)
 			return true, nil
 		}
@@ -397,7 +611,7 @@ func WaitForOperatorReady(ctx context.Context, k8sClient client.Client, opreqNam
 
 // WaitForOperandReady checks if all services in OperandRequest are ready
 func WaitForOperandReady(ctx context.Context, k8sClient client.Client, opreqName, ns string) error {
-	return wait.PollImmediate(60*time.Second, 10*time.Minute, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 60*time.Second, 10*time.Minute, false, func(ctx context.Context) (bool, error) {
 		operandRequest := &odlm.OperandRequest{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: opreqName, Namespace: ns}, operandRequest); err != nil {
 			return false, err
@@ -405,7 +619,7 @@ func WaitForOperandReady(ctx context.Context, k8sClient client.Client, opreqName
 
 		allReady := true
 		for _, service := range operandRequest.Status.Services {
-			if service.Status != resources.OperandStatusReady {
+			if service.Status != resources.StatusReady {
 				klog.Infof("Service %s in namespace %s is not Ready. Current status: %s", service.OperatorName, service.Namespace, service.Status)
 				allReady = false
 			}
@@ -422,8 +636,7 @@ func WaitForOperandReady(ctx context.Context, k8sClient client.Client, opreqName
 
 // waitForResource waits for the resource to be completed
 func WaitForRediscp(ctx context.Context, k8sClient client.Client, ns, name, group, kind, version, compStatus string) error {
-	return wait.PollImmediate(30*time.Second, 10*time.Minute, func() (bool, error) {
-
+	return wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, false, func(ctx context.Context) (bool, error) {
 		redisCR := NewUnstructured(group, kind, version)
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, redisCR); err != nil {
 			if k8serrors.IsNotFound(err) {
@@ -451,8 +664,7 @@ func WaitForRediscp(ctx context.Context, k8sClient client.Client, ns, name, grou
 
 // WaitForDeploymentReady waits for the deployment to be ready
 func WaitForDeploymentReady(ctx context.Context, k8sClient client.Client, ns, label string) error {
-
-	return wait.PollImmediate(20*time.Second, 10*time.Minute, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 20*time.Second, 10*time.Minute, false, func(ctx context.Context) (bool, error) {
 		deployments := &appsv1.DeploymentList{}
 
 		if err := k8sClient.List(ctx, deployments, &client.ListOptions{Namespace: ns}); err != nil {
@@ -489,8 +701,7 @@ func WaitForDeploymentReady(ctx context.Context, k8sClient client.Client, ns, la
 
 // WaitForJob waits for the job to be succeeded
 func WaitForJob(ctx context.Context, k8sClient client.Client, ns, name string) error {
-
-	return wait.PollImmediate(20*time.Second, 2*time.Minute, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 20*time.Second, 2*time.Minute, false, func(ctx context.Context) (bool, error) {
 		job := &batchv1.Job{}
 		if err := k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, job); err != nil {
 			if k8serrors.IsNotFound(err) {

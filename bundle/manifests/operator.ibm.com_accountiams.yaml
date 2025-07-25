@@ -46,6 +46,38 @@ spec:
             type: object
           status:
             description: AccountIAMStatus defines the observed state of AccountIAM
+            properties:
+              service:
+                description: Import the operandstatus from odlm
+                properties:
+                  apiVersion:
+                    type: string
+                  kind:
+                    type: string
+                  managedResources:
+                    description: Message string `json:"message,omitempty"`
+                    items:
+                      properties:
+                        apiVersion:
+                          type: string
+                        kind:
+                          type: string
+                        namespace:
+                          type: string
+                        objectName:
+                          type: string
+                        status:
+                          description: Type string `json:"type,omitempty"`
+                          type: string
+                      type: object
+                    type: array
+                  namespace:
+                    type: string
+                  objectName:
+                    type: string
+                  status:
+                    type: string
+                type: object
             type: object
         type: object
     served: true

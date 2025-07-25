@@ -1,5 +1,5 @@
 /*
-Copyright 2024.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -32,10 +33,30 @@ type AccountIAMSpec struct {
 	Foo string `json:"foo,omitempty"`
 }
 
+// // ManagedResourceStatus represents the status of a resource managed by AccountIAM
+// type ManagedResourceStatus struct {
+// 	ObjectName string `json:"objectName,omitempty"`
+// 	APIVersion string `json:"apiVersion,omitempty"`
+// 	Namespace  string `json:"namespace,omitempty"`
+// 	Kind       string `json:"kind,omitempty"`
+// 	Status     string `json:"status,omitempty"`
+// }
+
+// // ServiceStatus represents the status of the AccountIAM service and its managed resources
+// type ServiceStatus struct {
+// 	ObjectName       string                  `json:"objectName,omitempty"`
+// 	APIVersion       string                  `json:"apiVersion,omitempty"`
+// 	Namespace        string                  `json:"namespace,omitempty"`
+// 	Kind             string                  `json:"kind,omitempty"`
+// 	Status           string                  `json:"status,omitempty"`
+// 	ManagedResources []ManagedResourceStatus `json:"managedResources,omitempty"`
+// }
+
 // AccountIAMStatus defines the observed state of AccountIAM
 type AccountIAMStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+
+	// Import the operandstatus from odlm
+	Service odlm.OperandStatus `json:"service,omitempty"`
 }
 
 //+kubebuilder:object:root=true
