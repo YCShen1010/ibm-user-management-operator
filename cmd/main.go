@@ -21,6 +21,7 @@ import (
 	"flag"
 	"os"
 	"strings"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -42,12 +43,20 @@ import (
 	olmapi "github.com/operator-framework/api/pkg/operators/v1"
 
 	operatorv1alpha1 "github.com/IBM/ibm-user-management-operator/api/v1alpha1"
+	"github.com/IBM/ibm-user-management-operator/client/account_iam"
 	"github.com/IBM/ibm-user-management-operator/internal/controller"
 	"github.com/IBM/ibm-user-management-operator/internal/resources/images"
+	"github.com/IBM/ibm-user-management-operator/internal/retry"
 
 	//+kubebuilder:scaffold:imports
 
 	utils "github.com/IBM/ibm-user-management-operator/internal/controller/utils"
+)
+
+const (
+	BackoffInterval   = 2 * time.Second
+	BackoffMultiplier = 2
+	BackoffMaxRetries = 3
 )
 
 var (
@@ -168,9 +177,25 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	retryHandler := &retry.Retry{
+		BackoffInterval:   BackoffInterval,
+		BackoffMultiplier: BackoffMultiplier,
+		BackoffMaxRetries: BackoffMaxRetries,
+	}
+
+	IAMProductRolesEndpoint := "" // empty because AccountIAM operand must be created first to know where operand namespace is
+	IAMAPIKey := ""               // API key is empty to start because need to fetch from mcsp-im-integration-details secret
+
+	iamClient, err := account_iam.NewMCSPIAMClient(IAMProductRolesEndpoint, IAMAPIKey, retryHandler)
+	if err != nil {
+		setupLog.Error(err, "failed to create IAM client")
+		os.Exit(1)
+	}
 	if err = (&controller.RoleActionConfigReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		APIClient: iamClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RoleActionConfig")
 		os.Exit(1)

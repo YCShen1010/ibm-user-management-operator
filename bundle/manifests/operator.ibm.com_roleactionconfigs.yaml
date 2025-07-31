@@ -68,6 +68,10 @@ spec:
                       type: object
                     type: array
                 type: object
+              serviceID:
+                type: string
+            required:
+            - serviceID
             type: object
           status:
             description: RoleActionConfigStatus defines the observed state of RoleActionConfig

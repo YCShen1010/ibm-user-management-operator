@@ -28,6 +28,8 @@ type RoleActionConfigSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	ServiceID string `json:"serviceID"`
+
 	IAM IAM `json:"IAM,omitempty"`
 }
 
