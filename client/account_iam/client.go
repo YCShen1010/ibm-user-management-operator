@@ -75,14 +75,6 @@ const (
 )
 
 func NewMCSPIAMClient(baseUrl string, apiKey string, retryHandler *retry.Retry) (IAMClient, error) {
-	if baseUrl == "" {
-		return nil, fmt.Errorf("base url is empty")
-	}
-
-	if apiKey == "" {
-		return nil, fmt.Errorf("apiKey is empty")
-	}
-
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // TODO: change to trust account-iam's certificate
