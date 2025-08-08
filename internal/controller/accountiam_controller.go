@@ -62,6 +62,18 @@ type AccountIAMReconciler struct {
 	Recorder record.EventRecorder
 }
 
+// ReconcileContext holds all the data needed during reconciliation
+type ReconcileContext struct {
+	Instance        *operatorv1alpha1.AccountIAM
+	BootstrapData   BootstrapSecret
+	IntegrationData IntegrationConfig
+	UIData          UIBootstrapTemplate
+	RouteData       RouteParams
+	RedisCRData     RedisCRParams
+	Host            string
+	WLPClientID     string
+}
+
 // BootstrapSecret stores all the bootstrap secret data
 type BootstrapSecret struct {
 	Realm               string `json:"realm,omitempty"`
@@ -75,8 +87,6 @@ type BootstrapSecret struct {
 	GlobalAccountAud    string `json:"globalAccountAud,omitempty"`
 	UserValidationAPIV2 string `json:"userValidationAPIV2,omitempty"`
 }
-
-var BootstrapData BootstrapSecret
 
 // IntegrationConfig stores all the integration data for MCSP secret and IM integration
 type IntegrationConfig struct {
@@ -95,22 +105,16 @@ type IntegrationConfig struct {
 	CurrentEncryptionKeyNum string
 }
 
-var IntegrationData IntegrationConfig
-
-// RouteData holds the parameters for the Route CR
+// RouteParams holds the parameters for the Route CR
 type RouteParams struct {
 	CAcert string
 }
-
-var RouteData RouteParams
 
 // RedisCRParams holds the parameters for the Redis CR
 type RedisCRParams struct {
 	RedisCRSize    int
 	RedisCRVersion string
 }
-
-var RedisCRData RedisCRParams
 
 type UIBootstrapTemplate struct {
 	Hostname                    string
@@ -150,8 +154,6 @@ type UIBootstrapTemplate struct {
 	DefaultInstance             string
 }
 
-var UIBootstrapData UIBootstrapTemplate
-
 //+kubebuilder:rbac:groups=operator.ibm.com,namespace="placeholder",resources=accountiams,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=operator.ibm.com,namespace="placeholder",resources=accountiams/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=operator.ibm.com,namespace="placeholder",resources=accountiams/finalizers,verbs=update
@@ -183,65 +185,34 @@ var UIBootstrapData UIBootstrapTemplate
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.3/pkg/reconcile
 func (r *AccountIAMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	klog.Infof("Reconciling AccountIAM using fid image")
 
 	instance := &operatorv1alpha1.AccountIAM{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
 			klog.Infof("CR instance not found, don't requeue")
 			return ctrl.Result{}, nil
 		}
-		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
 	}
 
 	// Create a copy of the status to detect changes
 	originalStatus := instance.Status.DeepCopy()
 
-	// Defer status update for managed resources, will run even if reconcile returns early with error
+	// Defer status update for managed resources
 	defer func() {
 		r.updateManagedResourcesStatus(ctx, instance)
-
-		// Only update if status changed
 		if !reflect.DeepEqual(originalStatus, instance.Status) {
-
-			// Try adding a retry mechanism
-			var updateErr error
-			for i := 0; i < 3; i++ {
-				updateErr = r.Status().Update(ctx, instance)
-				if updateErr == nil {
-					klog.Infof("Successfully updated AccountIAM status after %d attempts", i+1)
-					break
-				}
-
-				klog.Errorf("Failed to update AccountIAM status (attempt %d/3): %v", i+1, updateErr)
-				time.Sleep(1 * time.Second)
-			}
-
-			if updateErr != nil {
-				klog.Errorf("All attempts to update status failed: %v", updateErr)
-			}
+			r.updateStatus(ctx, instance)
 		}
 	}()
 
-	if err := r.verifyPrereq(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
+	// Create reconcile context
+	reconcileCtx := &ReconcileContext{Instance: instance}
 
-	if err := r.reconcileOperandResources(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if err := r.configIM(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if err := r.reconcileUI(ctx, instance); err != nil {
+	// Execute reconciliation phases
+	if err := r.reconcilePhases(ctx, reconcileCtx); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -249,9 +220,76 @@ func (r *AccountIAMReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
+// reconcilePhases executes all reconciliation phases in order
+func (r *AccountIAMReconciler) reconcilePhases(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	phases := []func(context.Context, *ReconcileContext) error{
+		r.initializeReconcileContext,
+		r.reconcilePrerequisites,
+		r.reconcileOperandResourcesPhase,
+		r.reconcileIMConfiguration,
+		r.reconcileUIPhase,
+	}
+
+	for _, phase := range phases {
+		if err := phase(ctx, reconcileCtx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// initializeReconcileContext initializes the reconcile context with basic data
+func (r *AccountIAMReconciler) initializeReconcileContext(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	// Initialize Redis CR data
+	reconcileCtx.RedisCRData = RedisCRParams{
+		RedisCRSize:    3,
+		RedisCRVersion: "1.2.8",
+	}
+
+	return nil
+}
+
+// reconcilePrerequisites handles all prerequisite setup
+func (r *AccountIAMReconciler) reconcilePrerequisites(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	return r.verifyPrereq(ctx, reconcileCtx)
+}
+
+// reconcileOperandResourcesPhase wraps reconcileOperandResources for phase execution
+func (r *AccountIAMReconciler) reconcileOperandResourcesPhase(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	return r.reconcileOperandResources(ctx, reconcileCtx)
+}
+
+// reconcileIMConfiguration handles IM configuration
+func (r *AccountIAMReconciler) reconcileIMConfiguration(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	return r.configIM(ctx, reconcileCtx)
+}
+
+// reconcileUIPhase wraps reconcileUI for phase execution
+func (r *AccountIAMReconciler) reconcileUIPhase(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	return r.reconcileUI(ctx, reconcileCtx)
+}
+
+// updateStatus handles status updates with retry logic
+func (r *AccountIAMReconciler) updateStatus(ctx context.Context, instance *operatorv1alpha1.AccountIAM) {
+	var updateErr error
+	for i := 0; i < 3; i++ {
+		updateErr = r.Status().Update(ctx, instance)
+		if updateErr == nil {
+			klog.Infof("Successfully updated AccountIAM status after %d attempts", i+1)
+			return
+		}
+		klog.Errorf("Failed to update AccountIAM status (attempt %d/3): %v", i+1, updateErr)
+		time.Sleep(1 * time.Second)
+	}
+	if updateErr != nil {
+		klog.Errorf("All attempts to update status failed: %v", updateErr)
+	}
+}
+
 // -------------- verifyPrereq helper functions --------------
 
-func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
+func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	instance := reconcileCtx.Instance
 	operatorNames := []string{resources.RedisOperator, resources.IMPackage}
 
 	// Request IM operator and wait for their status
@@ -269,7 +307,7 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 	}
 
 	// Create Redis CR and wait for it to be ready
-	if err := r.createRedisCR(ctx, instance); err != nil {
+	if err := r.createRedisCR(ctx, reconcileCtx); err != nil {
 		klog.Errorf("Failed to create Redis CR: %v", err)
 		return err
 	}
@@ -286,31 +324,32 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, instance *opera
 		return err
 	}
 
-	// Get cp-console route
+	// Get cp-console route after operand request is ready
 	klog.Info("Getting cp-console route")
 	host, err := utils.GetHost(ctx, r.Client, "cp-console", instance.Namespace)
 	if err != nil {
 		return err
 	}
+	reconcileCtx.Host = host
 
-	// Create bootstrap secret
+	// Create bootstrap secret and populate context
 	klog.Info("Creating bootstrap secret")
 	bootstrapsecret, err := r.initBootstrapData(ctx, instance.Namespace, pgPassword[0])
 	if err != nil {
 		return err
 	}
 
-	// Read the values from bootstrap secret and store in BootstrapData struct
+	// Read the values from bootstrap secret and store in reconcileCtx
 	bootstrapConverter, err := yaml.Marshal(bootstrapsecret.Data)
 	if err != nil {
 		return err
 	}
-	if err := yaml.Unmarshal(bootstrapConverter, &BootstrapData); err != nil {
+	if err := yaml.Unmarshal(bootstrapConverter, &reconcileCtx.BootstrapData); err != nil {
 		return err
 	}
 
-	// Initialize the MCSPData struct
-	if err := r.initMCSPData(instance.Namespace, host); err != nil {
+	// Initialize the MCSP Data in context
+	if err := r.initMCSPData(reconcileCtx); err != nil {
 		return err
 	}
 
@@ -386,7 +425,8 @@ func (r *AccountIAMReconciler) createOperandRequest(ctx context.Context, instanc
 	return nil
 }
 
-func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
+func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	instance := reconcileCtx.Instance
 
 	// Check if Redis CRD exists
 	if existRedis, err := utils.CheckCRD(r.Config, utils.Concat(resources.RedisAPIGroup, "/", resources.Version), resources.RedisKind); err != nil {
@@ -395,39 +435,38 @@ func (r *AccountIAMReconciler) createRedisCR(ctx context.Context, instance *oper
 		return errors.New("redis CRD not found")
 	}
 
-	klog.Infof("Creating Redis certificate")
-	for _, v := range yamls.REDIS_CERTS {
-		object := &unstructured.Unstructured{}
-		manifest := []byte(v)
-		if err := yaml.Unmarshal(manifest, object); err != nil {
-			return err
-		}
-		object.SetNamespace(instance.Namespace)
-		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
-			return err
-		}
-		if err := r.createOrUpdate(ctx, object); err != nil {
-			return err
-		}
-	}
+	// Create Redis certificates and CR concurrently
+	errChan := make(chan error, 2)
 
-	// Create Redis CR
-	klog.Infof("Redis CRD exists, creating Redis CR %s in namespace %s", resources.Rediscp, instance.Namespace)
-	redisCRData := RedisCRParams{
-		RedisCRSize:    3,
-		RedisCRVersion: "1.2.8",
-	}
+	// Create Redis certificates
+	go func() {
+		klog.Infof("Creating Redis certificate")
+		errChan <- r.createResourcesFromYAMLs(ctx, instance, yamls.REDIS_CERTS)
+	}()
 
-	if err := r.injectData(ctx, instance, []string{yamls.RedisCRTemplate}, redisCRData); err != nil {
-		klog.Errorf("Failed to create Redis CR: %v", err)
-		return err
+	// Prepare Redis CR data
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				errChan <- fmt.Errorf("panic in Redis CR preparation: %v", r)
+			}
+		}()
+
+		klog.Infof("Redis CRD exists, creating Redis CR %s in namespace %s", resources.Rediscp, instance.Namespace)
+
+		err := r.injectData(ctx, instance, []string{yamls.RedisCRTemplate}, reconcileCtx.RedisCRData)
+		errChan <- err
+	}()
+
+	// Wait for both operations
+	for i := 0; i < 2; i++ {
+		if err := <-errChan; err != nil {
+			return err
+		}
 	}
 
 	// Wait for Redis CR to be ready
-	if err := utils.WaitForRediscp(ctx, r.Client, instance.Namespace, resources.Rediscp, resources.RedisAPIGroup, resources.RedisKind, resources.Version, resources.StatusCompleted); err != nil {
-		return err
-	}
-	return nil
+	return utils.WaitForRediscp(ctx, r.Client, instance.Namespace, resources.Rediscp, resources.RedisAPIGroup, resources.RedisKind, resources.Version, resources.StatusCompleted)
 }
 
 // InitBootstrapData initializes BootstrapData with default values
@@ -477,9 +516,13 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 	return bootstrapsecret, nil
 }
 
-// InitMCSPData initializes MCSPData with default values
-func (r *AccountIAMReconciler) initMCSPData(ns string, host string) error {
+// InitMCSPData initializes MCSP data in the reconcile context
+func (r *AccountIAMReconciler) initMCSPData(reconcileCtx *ReconcileContext) error {
 	klog.Infof("Initializing MCSP Data")
+	instance := reconcileCtx.Instance
+	host := reconcileCtx.Host
+	ns := instance.Namespace
+
 	accountIAMHost := strings.Replace(host, "cp-console", "account-iam", 1)
 	accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
 
@@ -510,7 +553,7 @@ func (r *AccountIAMReconciler) initMCSPData(ns string, host string) error {
 		currentKeyNum = "1"
 	}
 
-	IntegrationData = IntegrationConfig{
+	reconcileCtx.IntegrationData = IntegrationConfig{
 		AccountName:             "default-account",
 		ServiceName:             "default-service",
 		ServiceIDName:           "default-serviceid",
@@ -615,9 +658,50 @@ func (r *AccountIAMReconciler) createOperandRBAC(ctx context.Context, instance *
 
 // -------------- Reconcile resources helper functions --------------
 
-func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
+func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	instance := reconcileCtx.Instance
 
-	// TODO: will need to find a better place to initialize the database
+	// Create DB Bootstrap Job
+	if err := r.createDBBootstrapJob(ctx, instance); err != nil {
+		return err
+	}
+
+	// Get WLP client ID and prepare bootstrap data
+	if err := r.prepareBootstrapData(ctx, reconcileCtx); err != nil {
+		return err
+	}
+
+	// Create MCSP secrets
+	if err := r.createMCSPSecrets(ctx, reconcileCtx); err != nil {
+		return err
+	}
+
+	// Create static manifests
+	if err := r.createStaticManifests(ctx, instance); err != nil {
+		return err
+	}
+
+	// Create Account IAM resources
+	if err := r.createAccountIAMResources(ctx, instance); err != nil {
+		return err
+	}
+
+	// Create Account IAM Routes
+	if err := r.createAccountIAMRoutes(ctx, reconcileCtx); err != nil {
+		return err
+	}
+
+	// Configure issuer and wait for it
+	if err := r.configureAndWaitForIssuer(ctx, reconcileCtx); err != nil {
+		return err
+	}
+
+	klog.Infof("User Management operand resources created successfully")
+	return nil
+}
+
+// createDBBootstrapJob creates the database bootstrap job
+func (r *AccountIAMReconciler) createDBBootstrapJob(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 	klog.Infof("Applying DB Bootstrap Job")
 	object := &unstructured.Unstructured{}
 	resource := images.ReplaceInYAML(yamls.DB_BOOTSTRAP_JOB)
@@ -629,120 +713,126 @@ func (r *AccountIAMReconciler) reconcileOperandResources(ctx context.Context, in
 	if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.createOrUpdate(ctx, object); err != nil {
-		return err
-	}
+	return r.createOrUpdate(ctx, object)
+}
 
-	// Manifests which need data injected before creation
-	klog.Infof("Creating MCSP secrets")
+// prepareBootstrapData gets WLP client ID and prepares bootstrap data
+func (r *AccountIAMReconciler) prepareBootstrapData(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	instance := reconcileCtx.Instance
+
 	// Get WLP client ID
 	wlpClientID, err := utils.GetSecretData(ctx, r.Client, resources.IMOIDCCrendential, instance.Namespace, resources.WLPClientID)
 	if err != nil {
 		klog.Errorf("Failed to get WLP client ID from secret %s in namespace %s", resources.IMOIDCCrendential, instance.Namespace)
 		return err
 	}
+	reconcileCtx.WLPClientID = wlpClientID
 
-	decodedGlobalAud, err := base64.StdEncoding.DecodeString(BootstrapData.GlobalAccountAud)
+	// Update bootstrap data with WLP client ID
+	decodedGlobalAud, err := base64.StdEncoding.DecodeString(reconcileCtx.BootstrapData.GlobalAccountAud)
 	if err != nil {
 		return err
 	}
-	decodedDefaultAud, err := base64.StdEncoding.DecodeString(BootstrapData.DefaultAUDValue)
+	decodedDefaultAud, err := base64.StdEncoding.DecodeString(reconcileCtx.BootstrapData.DefaultAUDValue)
 	if err != nil {
 		return err
 	}
 
-	BootstrapData.GlobalAccountAud = base64.StdEncoding.EncodeToString([]byte(string(decodedGlobalAud) + "," + wlpClientID))
-	BootstrapData.DefaultAUDValue = base64.StdEncoding.EncodeToString([]byte(string(decodedDefaultAud) + "," + wlpClientID))
+	reconcileCtx.BootstrapData.GlobalAccountAud = base64.StdEncoding.EncodeToString([]byte(string(decodedGlobalAud) + "," + wlpClientID))
+	reconcileCtx.BootstrapData.DefaultAUDValue = base64.StdEncoding.EncodeToString([]byte(string(decodedDefaultAud) + "," + wlpClientID))
 
 	// Only encode the encryption keys if they're not already encoded
-	// they should be raw JSON at this point from initMCSPData
-	if !strings.HasPrefix(IntegrationData.EncryptionKeys, "eyJ") {
-		IntegrationData.EncryptionKeys = base64.StdEncoding.EncodeToString([]byte(IntegrationData.EncryptionKeys))
+	if !strings.HasPrefix(reconcileCtx.IntegrationData.EncryptionKeys, "eyJ") {
+		reconcileCtx.IntegrationData.EncryptionKeys = base64.StdEncoding.EncodeToString([]byte(reconcileCtx.IntegrationData.EncryptionKeys))
 	}
 
-	if !strings.HasPrefix(IntegrationData.CurrentEncryptionKeyNum, "eyJ") {
-		IntegrationData.CurrentEncryptionKeyNum = base64.StdEncoding.EncodeToString([]byte(IntegrationData.CurrentEncryptionKeyNum))
+	if !strings.HasPrefix(reconcileCtx.IntegrationData.CurrentEncryptionKeyNum, "eyJ") {
+		reconcileCtx.IntegrationData.CurrentEncryptionKeyNum = base64.StdEncoding.EncodeToString([]byte(reconcileCtx.IntegrationData.CurrentEncryptionKeyNum))
 	}
 
-	if err := r.injectData(ctx, instance, append(yamls.APP_SECRETS, yamls.IM_INTEGRATION_YAMLS...), BootstrapData, IntegrationData); err != nil {
-		return err
-	}
+	return nil
+}
 
-	// static manifests which do not change
+// createMCSPSecrets creates MCSP secrets with injected data
+func (r *AccountIAMReconciler) createMCSPSecrets(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	klog.Infof("Creating MCSP secrets")
+	return r.injectData(ctx, reconcileCtx.Instance, append(yamls.APP_SECRETS, yamls.IM_INTEGRATION_YAMLS...), reconcileCtx.BootstrapData, reconcileCtx.IntegrationData)
+}
+
+// createStaticManifests creates static YAML manifests
+func (r *AccountIAMReconciler) createStaticManifests(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 	klog.Infof("Creating MCSP static yamls")
-	for _, v := range yamls.APP_STATIC_YAMLS {
-		object := &unstructured.Unstructured{}
+	return r.createResourcesFromYAMLs(ctx, instance, yamls.APP_STATIC_YAMLS)
+}
 
-		if images.ContainsImageReferences(v) {
-			v = images.ReplaceInYAML(v)
-		}
-
-		manifest := []byte(v)
-		if err := yaml.Unmarshal(manifest, object); err != nil {
-			return err
-		}
-		object.SetNamespace(instance.Namespace)
-		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
-			return err
-		}
-		if err := r.createOrUpdate(ctx, object); err != nil {
-			return err
-		}
-	}
-
+// createAccountIAMResources creates Account IAM resources
+func (r *AccountIAMReconciler) createAccountIAMResources(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
 	klog.Infof("Creating Account IAM yamls")
-	for _, v := range yamls.ACCOUNT_IAM_RES {
-		object := &unstructured.Unstructured{}
-		v = strings.ReplaceAll(v, "${NAMESPACE}", instance.Namespace)
-		if images.ContainsImageReferences(v) {
-			v = images.ReplaceInYAML(v)
-		}
-
-		manifest := []byte(v)
-		if err := yaml.Unmarshal(manifest, object); err != nil {
-			return err
-		}
-		object.SetNamespace(instance.Namespace)
-		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
-			return err
-		}
-		if err := r.createOrUpdate(ctx, object); err != nil {
-			return err
-		}
+	yamlsToProcess := make([]string, len(yamls.ACCOUNT_IAM_RES))
+	for i, v := range yamls.ACCOUNT_IAM_RES {
+		yamlsToProcess[i] = strings.ReplaceAll(v, "${NAMESPACE}", instance.Namespace)
 	}
+	return r.createResourcesFromYAMLs(ctx, instance, yamlsToProcess)
+}
 
+// createAccountIAMRoutes creates Account IAM routes with CA certificate data
+func (r *AccountIAMReconciler) createAccountIAMRoutes(ctx context.Context, reconcileCtx *ReconcileContext) error {
 	klog.Infof("Creating Account IAM Routes")
+	instance := reconcileCtx.Instance
+
 	caCRT, err := utils.GetSecretData(ctx, r.Client, resources.AccountIAMCACert, instance.Namespace, resources.CAKey)
 	if err != nil {
 		klog.Errorf("Failed to get ca.crt from secret %s in namespace %s", resources.CSCASecret, instance.Namespace)
 		return err
 	}
 
-	RouteData := RouteParams{
+	reconcileCtx.RouteData = RouteParams{
 		CAcert: utils.IndentCert(caCRT, 6),
 	}
 
-	if err := r.injectData(ctx, instance, yamls.ACCOUNT_IAM_ROUTE_RES, RouteData); err != nil {
-		return err
-	}
+	return r.injectData(ctx, instance, yamls.ACCOUNT_IAM_ROUTE_RES, reconcileCtx.RouteData)
+}
 
-	// Ensure the CommonService CR is configured to set the desired OIDC issuer URL.
-	// This is the trigger for the platform-auth-idp ConfigMap to be updated by IM operator.
+// configureAndWaitForIssuer configures the issuer via CommonService and waits for it
+func (r *AccountIAMReconciler) configureAndWaitForIssuer(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	// Ensure the CommonService CR is configured to set the desired OIDC issuer URL
 	klog.Infof("Ensuring OIDC issuer URL is configured in CommonService CR")
-	if err := r.configureIssuerViaCS(ctx); err != nil {
+	if err := r.configureIssuerViaCS(ctx, reconcileCtx.IntegrationData); err != nil {
 		klog.Errorf("Failed to configure OIDC issuer URL in CommonService CR: %v", err)
 		return fmt.Errorf("failed to configure issuer via CommonService CR: %w", err)
 	}
 
-	// Wait for the OIDC_ISSUER_URL to be updated in the platform-auth-idp ConfigMap.
-	// The waitForIssuerinCM function will fetch the configmap and check the OIDC_ISSUER_URL.
+	// Wait for the OIDC_ISSUER_URL to be updated in the platform-auth-idp ConfigMap
 	klog.Infof("Waiting for OIDC_ISSUER_URL to be updated in platform-auth-idp ConfigMap")
-	if err := r.waitForIssuerinCM(ctx, instance.Namespace); err != nil {
+	if err := r.waitForIssuerinCM(ctx, reconcileCtx.Instance.Namespace, reconcileCtx.IntegrationData); err != nil {
 		klog.Errorf("Failed to wait for OIDC_ISSUER_URL in platform-auth-idp ConfigMap: %v", err)
 		return fmt.Errorf("failed waiting for issuer in ConfigMap: %w", err)
 	}
 
-	klog.Infof("User Management operand resources created successfully")
+	return nil
+}
+
+// createResourcesFromYAMLs is a helper function to create resources from YAML manifests
+func (r *AccountIAMReconciler) createResourcesFromYAMLs(ctx context.Context, instance *operatorv1alpha1.AccountIAM, yamls []string) error {
+	for _, v := range yamls {
+		object := &unstructured.Unstructured{}
+
+		if images.ContainsImageReferences(v) {
+			v = images.ReplaceInYAML(v)
+		}
+
+		manifest := []byte(v)
+		if err := yaml.Unmarshal(manifest, object); err != nil {
+			return err
+		}
+		object.SetNamespace(instance.Namespace)
+		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.createOrUpdate(ctx, object); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -783,7 +873,7 @@ func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operato
 	return nil
 }
 
-func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context) error {
+func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context, integrationData IntegrationConfig) error {
 	// Update issuer in CommonService CR
 	klog.Infof("Updating issuer in CommonService CR")
 	commonService := &unstructured.Unstructured{}
@@ -829,7 +919,7 @@ func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context) error {
 			"spec": map[string]interface{}{
 				"authentication": map[string]interface{}{
 					"config": map[string]interface{}{
-						"oidcIssuerURL": IntegrationData.DefaultIDPValue,
+						"oidcIssuerURL": integrationData.DefaultIDPValue,
 					},
 				},
 			},
@@ -864,9 +954,9 @@ func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context) error {
 
 		// Check if the value needs to be updated
 		currentURL, ok := config["oidcIssuerURL"].(string)
-		if !ok || currentURL != IntegrationData.DefaultIDPValue {
-			klog.Infof("Updating oidcIssuerURL from %s to %s", currentURL, IntegrationData.DefaultIDPValue)
-			config["oidcIssuerURL"] = IntegrationData.DefaultIDPValue
+		if !ok || currentURL != integrationData.DefaultIDPValue {
+			klog.Infof("Updating oidcIssuerURL from %s to %s", currentURL, integrationData.DefaultIDPValue)
+			config["oidcIssuerURL"] = integrationData.DefaultIDPValue
 			needsUpdate = true
 		} else {
 			klog.Infof("CommonService CR %s/%s already has the desired oidcIssuerURL: %s", utils.GetOperatorNamespace(), "common-service", currentURL)
@@ -894,7 +984,7 @@ func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context) error {
 	return nil
 }
 
-func (r *AccountIAMReconciler) waitForIssuerinCM(ctx context.Context, ns string) error {
+func (r *AccountIAMReconciler) waitForIssuerinCM(ctx context.Context, ns string, integrationData IntegrationConfig) error {
 	timeout := time.After(5 * time.Minute)
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -920,12 +1010,12 @@ func (r *AccountIAMReconciler) waitForIssuerinCM(ctx context.Context, ns string)
 
 			// Check if the OIDC_ISSUER_URL field has been updated
 			if issuerURL, ok := configMap.Data["OIDC_ISSUER_URL"]; ok {
-				if issuerURL == IntegrationData.DefaultIDPValue {
+				if issuerURL == integrationData.DefaultIDPValue {
 					klog.Infof("OIDC_ISSUER_URL successfully updated to %s in platform-auth-idp ConfigMap", issuerURL)
 					goto endWait
 				}
 				klog.V(2).Infof("OIDC_ISSUER_URL in ConfigMap is %s, waiting for %s...",
-					issuerURL, IntegrationData.DefaultIDPValue)
+					issuerURL, integrationData.DefaultIDPValue)
 			} else {
 				klog.V(2).Infof("OIDC_ISSUER_URL field not found in ConfigMap %s/%s, waiting...", ns, "platform-auth-idp")
 			}
@@ -939,15 +1029,14 @@ endWait:
 
 // -------------- Config IM functions --------------
 
-func (r *AccountIAMReconciler) configIM(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
-
+func (r *AccountIAMReconciler) configIM(ctx context.Context, reconcileCtx *ReconcileContext) error {
 	klog.Infof("Applying IM Config Job")
 
-	if err := r.injectData(ctx, instance, yamls.IMConfigYamls, IntegrationData); err != nil {
+	if err := r.injectData(ctx, reconcileCtx.Instance, yamls.IMConfigYamls, reconcileCtx.IntegrationData); err != nil {
 		return err
 	}
 
-	if err := utils.WaitForJob(ctx, r.Client, instance.Namespace, resources.IMConfigJob); err != nil {
+	if err := utils.WaitForJob(ctx, r.Client, reconcileCtx.Instance.Namespace, resources.IMConfigJob); err != nil {
 		klog.Error("Failed to wait for IM Config Job to be succeeded")
 		return err
 	}
@@ -959,8 +1048,8 @@ func (r *AccountIAMReconciler) configIM(ctx context.Context, instance *operatorv
 
 // -------------- Reconcile UI functions --------------
 
-func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
-	if err := r.initUIBootstrapData(ctx, instance); err != nil {
+func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, reconcileCtx *ReconcileContext) error {
+	if err := r.initUIBootstrapData(ctx, reconcileCtx); err != nil {
 		return err
 	}
 
@@ -976,15 +1065,15 @@ func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, instance *operat
 		if err != nil {
 			return err
 		}
-		if err := tmpl.Execute(&tmplWriter, UIBootstrapData); err != nil {
+		if err := tmpl.Execute(&tmplWriter, reconcileCtx.UIData); err != nil {
 			return err
 		}
 
 		if err := yaml.Unmarshal(tmplWriter.Bytes(), object); err != nil {
 			return err
 		}
-		object.SetNamespace(instance.Namespace)
-		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
+		object.SetNamespace(reconcileCtx.Instance.Namespace)
+		if err := controllerutil.SetControllerReference(reconcileCtx.Instance, object, r.Scheme); err != nil {
 			return err
 		}
 		if err := r.createOrUpdate(ctx, object); err != nil {
@@ -993,31 +1082,13 @@ func (r *AccountIAMReconciler) reconcileUI(ctx context.Context, instance *operat
 	}
 
 	klog.Infof("Creating static yamls for UI")
-	for _, v := range yamls.StaticYamlsUI {
-		object := &unstructured.Unstructured{}
-
-		if images.ContainsImageReferences(v) {
-			v = images.ReplaceInYAML(v)
-		}
-
-		manifest := []byte(v)
-		if err := yaml.Unmarshal(manifest, object); err != nil {
-			return err
-		}
-		object.SetNamespace(instance.Namespace)
-		if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
-			return err
-		}
-		if err := r.createOrUpdate(ctx, object); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return r.createResourcesFromYAMLs(ctx, reconcileCtx.Instance, yamls.StaticYamlsUI)
 }
 
-func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance *operatorv1alpha1.AccountIAM) error {
+func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, reconcileCtx *ReconcileContext) error {
 	klog.Infof("Initializing UI Bootstrap Data")
+	instance := reconcileCtx.Instance
+
 	clusterInfo := &corev1.ConfigMap{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: "ibmcloud-cluster-info"}, clusterInfo); err != nil {
 		return err
@@ -1071,16 +1142,16 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, instance
 		return err
 	}
 
-	decodedClientID, err := base64.StdEncoding.DecodeString(BootstrapData.ClientID)
+	decodedClientID, err := base64.StdEncoding.DecodeString(reconcileCtx.BootstrapData.ClientID)
 	if err != nil {
 		return err
 	}
-	decodedClientSecret, err := base64.StdEncoding.DecodeString(BootstrapData.ClientSecret)
+	decodedClientSecret, err := base64.StdEncoding.DecodeString(reconcileCtx.BootstrapData.ClientSecret)
 	if err != nil {
 		return err
 	}
 
-	UIBootstrapData = UIBootstrapTemplate{
+	reconcileCtx.UIData = UIBootstrapTemplate{
 		Hostname:                   utils.Concat("account-iam-console-", instance.Namespace, ".", domain),
 		InstanceManagementHostname: utils.Concat("account-iam-console-", instance.Namespace, ".", domain),
 		ClientID:                   string(decodedClientID),
