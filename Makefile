@@ -7,7 +7,6 @@ include make/*.mk
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 1.0.0
 RELEASE_VERSION ?= $(shell cat ./version/version.go | grep "Version =" | awk '{ print $$3}' | tr -d '"')
-VCS_URL ?= https://github.com/IBM/ibm-user-management-operator
 VCS_REF ?= $(shell git rev-parse HEAD)
 
 ifeq ($(BUILD_LOCALLY),0)
@@ -175,8 +174,7 @@ build-operator-image: $(CONFIG_DOCKER_TARGET) ## Build the operator image.
 	@echo "Building the $(OPERATOR_IMAGE_NAME) docker image for $(LOCAL_ARCH)..."
 	@echo "GOARCH=$(LOCAL_ARCH)"
 	@docker build -t $(OPERATOR_IMAGE_NAME)-$(LOCAL_ARCH):$(VERSION) \
-	--build-arg VCS_REF=$(VCS_REF) --build-arg VCS_URL=$(VCS_URL) \
-	--build-arg GOARCH=$(LOCAL_ARCH) -f Dockerfile .
+	--build-arg VCS_REF=$(VCS_REF) --build-arg GOARCH=$(LOCAL_ARCH) -f Dockerfile .
 
 ##@ Release
 build-push-image: $(CONFIG_DOCKER_TARGET) build-operator-image  ## Build and push the operator images.
@@ -201,7 +199,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} \
-	--build-arg VCS_REF=$(VCS_REF) --build-arg VCS_URL=$(VCS_URL) .
+	--build-arg VCS_REF=$(VCS_REF) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.

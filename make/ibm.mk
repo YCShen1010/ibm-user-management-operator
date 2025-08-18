@@ -15,7 +15,6 @@ endif
 IMG ?= $(IMAGE_TAG_BASE):latest
 
 ## Image build variable
-VCS_URL ?= https://github.com/IBM/ibm-user-management-operator
 VCS_REF ?= $(shell git rev-parse HEAD)
 
 ## General

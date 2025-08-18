@@ -32,11 +32,9 @@ COPY --from=builder /workspace/manager .
 USER 65532:65532
 
 ARG VCS_REF
-ARG VCS_URL
 
 LABEL org.label-schema.vendor="IBM" \
   org.label-schema.name="ibm user management operator" \
-  org.label-schema.vcs-ref=$VCS_REF \
-  org.label-schema.vcs-url=$VCS_URL
+  org.label-schema.vcs-ref=$VCS_REF
 
 ENTRYPOINT ["/manager"]
