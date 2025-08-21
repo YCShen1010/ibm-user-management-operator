@@ -539,60 +539,31 @@ func (r *AccountIAMReconciler) initMCSPData(reconcileCtx *ReconcileContext) erro
 	accountIAMHost := strings.Replace(host, "cp-console", "account-iam", 1)
 	accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
 
-	// Always read encryption keys from bootstrap secret to ensure consistency
+	// Always read encryption keys from bootstrap secret
 	var encryptionKeys string
 	var currentKeyNum string
 
 	if reconcileCtx.BootstrapData.EncryptionKeys != "" && reconcileCtx.BootstrapData.CurrentEncryptionKeyNum != "" {
-		// Use the encryption keys from the bootstrap secret
 		encryptionKeys = reconcileCtx.BootstrapData.EncryptionKeys
 		currentKeyNum = reconcileCtx.BootstrapData.CurrentEncryptionKeyNum
 		klog.Infof("Using existing encryption keys from bootstrap secret")
 	} else {
-		// This should not happen if bootstrap secret is properly created, but handle as fallback
 		klog.Warningf("Encryption keys not found in bootstrap secret, this might indicate a data migration issue")
 
-		// Try to read from existing account-iam-database-secret as fallback
-		existingSecret := &corev1.Secret{}
-		err := r.Client.Get(context.TODO(), types.NamespacedName{Name: resources.AccountIAMDBSecret, Namespace: ns}, existingSecret)
-
-		if err == nil && existingSecret.Data != nil {
-			if encKeys, ok := existingSecret.Data["ENCRYPTION_KEYS"]; ok && len(encKeys) > 0 {
-				encryptionKeys = string(encKeys)
-				klog.Infof("Found encryption keys in existing account-iam-database-secret")
-			}
-			if keyNum, ok := existingSecret.Data["CURRENT_ENCRYPTION_KEY_NUM"]; ok && len(keyNum) > 0 {
-				currentKeyNum = string(keyNum)
-			}
-		}
-
-		// If still no keys found, generate new ones (should only happen in very first deployment)
-		if encryptionKeys == "" || currentKeyNum == "" {
-			keys, genErr := utils.RandStrings(32)
-			if genErr != nil {
-				klog.Errorf("Failed to generate encryption key: %v", genErr)
-				return genErr
-			}
-			encryptionKeys = fmt.Sprintf(`[{keyNum: 1, key: %s}]`, string(keys[0]))
-			currentKeyNum = "1"
-			klog.Warningf("Generated new encryption keys as fallback - this should only happen on initial deployment")
-		}
 	}
 
 	reconcileCtx.IntegrationData = IntegrationConfig{
-		AccountName:          "default-account",
-		ServiceName:          "default-service",
-		ServiceIDName:        "default-serviceid",
-		SubscriptionName:     "default-subscription",
-		DiscoveryEndpoint:    utils.Concat("https://", host, "/idprovider/v1/auth/.well-known/openid-configuration"),
-		DefaultIDPValue:      utils.Concat("https://", host, "/idprovider/v1/auth"),
-		GlobalAccountIDP:     utils.Concat("https://", host, "/idprovider/v1/auth"),
-		AccountIAMNamespace:  ns,
-		IMURL:                utils.Concat("https://", host),
-		AccountIAMURL:        utils.Concat("https://", accountIAMHost),
-		AccountIAMConsoleURL: utils.Concat("https://", accountIAMUIHost),
-		// These encryption keys are now always sourced from the bootstrap secret
-		// ensuring consistency across cluster restores and preventing migration job failures
+		AccountName:             "default-account",
+		ServiceName:             "default-service",
+		ServiceIDName:           "default-serviceid",
+		SubscriptionName:        "default-subscription",
+		DiscoveryEndpoint:       utils.Concat("https://", host, "/idprovider/v1/auth/.well-known/openid-configuration"),
+		DefaultIDPValue:         utils.Concat("https://", host, "/idprovider/v1/auth"),
+		GlobalAccountIDP:        utils.Concat("https://", host, "/idprovider/v1/auth"),
+		AccountIAMNamespace:     ns,
+		IMURL:                   utils.Concat("https://", host),
+		AccountIAMURL:           utils.Concat("https://", accountIAMHost),
+		AccountIAMConsoleURL:    utils.Concat("https://", accountIAMUIHost),
 		EncryptionKeys:          encryptionKeys,
 		CurrentEncryptionKeyNum: currentKeyNum,
 	}
