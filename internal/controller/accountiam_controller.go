@@ -76,16 +76,18 @@ type ReconcileContext struct {
 
 // BootstrapSecret stores all the bootstrap secret data
 type BootstrapSecret struct {
-	Realm               string `json:"realm,omitempty"`
-	ClientID            string `json:"clientID,omitempty"`
-	ClientSecret        string `json:"clientSecret,omitempty"`
-	PGPassword          string `json:"pgPassword,omitempty"`
-	DefaultAUDValue     string `json:"defaultAUDValue,omitempty"`
-	DefaultRealmValue   string `json:"defaultRealmValue,omitempty"`
-	SREMCSPGroupsToken  string `json:"sremcspGroupsToken,omitempty"`
-	GlobalRealmValue    string `json:"globalRealmValue,omitempty"`
-	GlobalAccountAud    string `json:"globalAccountAud,omitempty"`
-	UserValidationAPIV2 string `json:"userValidationAPIV2,omitempty"`
+	Realm                   string `json:"realm,omitempty"`
+	ClientID                string `json:"clientID,omitempty"`
+	ClientSecret            string `json:"clientSecret,omitempty"`
+	PGPassword              string `json:"pgPassword,omitempty"`
+	DefaultAUDValue         string `json:"defaultAUDValue,omitempty"`
+	DefaultRealmValue       string `json:"defaultRealmValue,omitempty"`
+	SREMCSPGroupsToken      string `json:"sremcspGroupsToken,omitempty"`
+	GlobalRealmValue        string `json:"globalRealmValue,omitempty"`
+	GlobalAccountAud        string `json:"globalAccountAud,omitempty"`
+	UserValidationAPIV2     string `json:"userValidationAPIV2,omitempty"`
+	EncryptionKeys          string `json:"encryptionKeys,omitempty"`
+	CurrentEncryptionKeyNum string `json:"currentEncryptionKeyNum,omitempty"`
 }
 
 // IntegrationConfig stores all the integration data for MCSP secret and IM integration
@@ -332,8 +334,8 @@ func (r *AccountIAMReconciler) verifyPrereq(ctx context.Context, reconcileCtx *R
 	}
 	reconcileCtx.Host = host
 
-	// Create bootstrap secret and populate context
-	klog.Info("Creating bootstrap secret")
+	// Create bootstrap secret
+	klog.Info("Creating/updating bootstrap secret with encryption keys")
 	bootstrapsecret, err := r.initBootstrapData(ctx, instance.Namespace, pgPassword[0])
 	if err != nil {
 		return err
@@ -485,23 +487,32 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 		clinetID := clientVars[0]
 		clientSecret := clientVars[1]
 
-		klog.Info("Creating bootstrap secret with PG password")
+		encryptionKeyBytes, err := utils.RandStrings(32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate encryption key: %v", err)
+		}
+		encryptionKeys := fmt.Sprintf(`[{keyNum: 1, key: %s}]`, string(encryptionKeyBytes[0]))
+		currentEncryptionKeyNum := "1"
+
+		klog.Info("Creating bootstrap secret with PG password and encryption keys")
 		newsecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "user-mgmt-bootstrap",
 				Namespace: ns,
 			},
 			Data: map[string][]byte{
-				"realm":               []byte("PrimaryRealm"),
-				"clientID":            clinetID,
-				"clientSecret":        clientSecret,
-				"userValidationAPIV2": []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
-				"defaultAUDValue":     clinetID,
-				"defaultRealmValue":   []byte("PrimaryRealm"),
-				"sremcspGroupsToken":  []byte("mcsp-im-integration-admin"),
-				"globalRealmValue":    []byte("PrimaryRealm"),
-				"globalAccountAud":    clinetID,
-				"pgPassword":          pg,
+				"realm":                   []byte("PrimaryRealm"),
+				"clientID":                clinetID,
+				"clientSecret":            clientSecret,
+				"userValidationAPIV2":     []byte("https://openshift.default.svc/apis/user.openshift.io/v1/users/~"),
+				"defaultAUDValue":         clinetID,
+				"defaultRealmValue":       []byte("PrimaryRealm"),
+				"sremcspGroupsToken":      []byte("mcsp-im-integration-admin"),
+				"globalRealmValue":        []byte("PrimaryRealm"),
+				"globalAccountAud":        clinetID,
+				"pgPassword":              pg,
+				"encryptionKeys":          []byte(encryptionKeys),
+				"currentEncryptionKeyNum": []byte(currentEncryptionKeyNum),
 			},
 			Type: corev1.SecretTypeOpaque,
 		}
@@ -513,6 +524,34 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 		}
 		return newsecret, nil
 	}
+
+	if bootstrapsecret.Data == nil {
+		bootstrapsecret.Data = make(map[string][]byte)
+	}
+
+	// Check if encryption keys exist, if not, add them
+	needsUpdate := false
+	if _, hasEncryptionKeys := bootstrapsecret.Data["encryptionKeys"]; !hasEncryptionKeys {
+		encryptionKeyBytes, err := utils.RandStrings(32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate encryption key: %v", err)
+		}
+		encryptionKeys := fmt.Sprintf(`[{keyNum: 1, key: %s}]`, string(encryptionKeyBytes[0]))
+		currentKeyNum := "1"
+
+		bootstrapsecret.Data["encryptionKeys"] = []byte(encryptionKeys)
+		bootstrapsecret.Data["currentEncryptionKeyNum"] = []byte(currentKeyNum)
+		needsUpdate = true
+		klog.Infof("Generated new encryption keys for existing bootstrap secret")
+	}
+
+	if needsUpdate {
+		if err := r.Update(ctx, bootstrapsecret); err != nil {
+			return nil, fmt.Errorf("failed to update bootstrap secret with encryption keys: %v", err)
+		}
+		klog.Infof("Successfully updated bootstrap secret with encryption keys")
+	}
+
 	return bootstrapsecret, nil
 }
 
@@ -526,33 +565,6 @@ func (r *AccountIAMReconciler) initMCSPData(reconcileCtx *ReconcileContext) erro
 	accountIAMHost := strings.Replace(host, "cp-console", "account-iam", 1)
 	accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
 
-	existingSecret := &corev1.Secret{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: resources.AccountIAMDBSecret, Namespace: ns}, existingSecret)
-
-	var encryptionKeys string
-	var currentKeyNum string
-
-	if err == nil && existingSecret.Data != nil {
-		if encKeys, ok := existingSecret.Data["ENCRYPTION_KEYS"]; ok && len(encKeys) > 0 {
-			encryptionKeys = string(encKeys)
-		}
-
-		if keyNum, ok := existingSecret.Data["CURRENT_ENCRYPTION_KEY_NUM"]; ok && len(keyNum) > 0 {
-			currentKeyNum = string(keyNum)
-		}
-	}
-
-	if encryptionKeys == "" || currentKeyNum == "" {
-		keys, genErr := utils.RandStrings(32)
-		if genErr != nil {
-			klog.Errorf("Failed to generate encryption key: %v", genErr)
-			return genErr
-		}
-
-		encryptionKeys = fmt.Sprintf(`[{keyNum: 1, key: %s}]`, string(keys[0]))
-		currentKeyNum = "1"
-	}
-
 	reconcileCtx.IntegrationData = IntegrationConfig{
 		AccountName:             "default-account",
 		ServiceName:             "default-service",
@@ -565,8 +577,8 @@ func (r *AccountIAMReconciler) initMCSPData(reconcileCtx *ReconcileContext) erro
 		IMURL:                   utils.Concat("https://", host),
 		AccountIAMURL:           utils.Concat("https://", accountIAMHost),
 		AccountIAMConsoleURL:    utils.Concat("https://", accountIAMUIHost),
-		EncryptionKeys:          encryptionKeys,
-		CurrentEncryptionKeyNum: currentKeyNum,
+		EncryptionKeys:          "",
+		CurrentEncryptionKeyNum: "",
 	}
 	return nil
 }
@@ -720,6 +732,13 @@ func (r *AccountIAMReconciler) createDBBootstrapJob(ctx context.Context, instanc
 func (r *AccountIAMReconciler) prepareBootstrapData(ctx context.Context, reconcileCtx *ReconcileContext) error {
 	instance := reconcileCtx.Instance
 
+	// First, ensure encryption keys are available in integration data from bootstrap secret
+	if reconcileCtx.IntegrationData.EncryptionKeys == "" {
+		reconcileCtx.IntegrationData.EncryptionKeys = reconcileCtx.BootstrapData.EncryptionKeys
+		reconcileCtx.IntegrationData.CurrentEncryptionKeyNum = reconcileCtx.BootstrapData.CurrentEncryptionKeyNum
+		klog.V(2).Infof("Populated integration data with encryption keys from bootstrap secret")
+	}
+
 	// Get WLP client ID
 	wlpClientID, err := utils.GetSecretData(ctx, r.Client, resources.IMOIDCCrendential, instance.Namespace, resources.WLPClientID)
 	if err != nil {
@@ -740,15 +759,6 @@ func (r *AccountIAMReconciler) prepareBootstrapData(ctx context.Context, reconci
 
 	reconcileCtx.BootstrapData.GlobalAccountAud = base64.StdEncoding.EncodeToString([]byte(string(decodedGlobalAud) + "," + wlpClientID))
 	reconcileCtx.BootstrapData.DefaultAUDValue = base64.StdEncoding.EncodeToString([]byte(string(decodedDefaultAud) + "," + wlpClientID))
-
-	// Only encode the encryption keys if they're not already encoded
-	if !strings.HasPrefix(reconcileCtx.IntegrationData.EncryptionKeys, "eyJ") {
-		reconcileCtx.IntegrationData.EncryptionKeys = base64.StdEncoding.EncodeToString([]byte(reconcileCtx.IntegrationData.EncryptionKeys))
-	}
-
-	if !strings.HasPrefix(reconcileCtx.IntegrationData.CurrentEncryptionKeyNum, "eyJ") {
-		reconcileCtx.IntegrationData.CurrentEncryptionKeyNum = base64.StdEncoding.EncodeToString([]byte(reconcileCtx.IntegrationData.CurrentEncryptionKeyNum))
-	}
 
 	return nil
 }
