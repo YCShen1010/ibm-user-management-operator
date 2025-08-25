@@ -487,7 +487,6 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 		clinetID := clientVars[0]
 		clientSecret := clientVars[1]
 
-		// Generate encryption keys for MCSP
 		encryptionKeyBytes, err := utils.RandStrings(32)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate encryption key: %v", err)
@@ -526,6 +525,33 @@ func (r *AccountIAMReconciler) initBootstrapData(ctx context.Context, ns string,
 		return newsecret, nil
 	}
 
+	if bootstrapsecret.Data == nil {
+		bootstrapsecret.Data = make(map[string][]byte)
+	}
+
+	// Check if encryption keys exist, if not, add them
+	needsUpdate := false
+	if _, hasEncryptionKeys := bootstrapsecret.Data["encryptionKeys"]; !hasEncryptionKeys {
+		encryptionKeyBytes, err := utils.RandStrings(32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate encryption key: %v", err)
+		}
+		encryptionKeys := fmt.Sprintf(`[{keyNum: 1, key: %s}]`, string(encryptionKeyBytes[0]))
+		currentKeyNum := "1"
+
+		bootstrapsecret.Data["encryptionKeys"] = []byte(encryptionKeys)
+		bootstrapsecret.Data["currentEncryptionKeyNum"] = []byte(currentKeyNum)
+		needsUpdate = true
+		klog.Infof("Generated new encryption keys for existing bootstrap secret")
+	}
+
+	if needsUpdate {
+		if err := r.Update(ctx, bootstrapsecret); err != nil {
+			return nil, fmt.Errorf("failed to update bootstrap secret with encryption keys: %v", err)
+		}
+		klog.Infof("Successfully updated bootstrap secret with encryption keys")
+	}
+
 	return bootstrapsecret, nil
 }
 
@@ -539,19 +565,6 @@ func (r *AccountIAMReconciler) initMCSPData(reconcileCtx *ReconcileContext) erro
 	accountIAMHost := strings.Replace(host, "cp-console", "account-iam", 1)
 	accountIAMUIHost := strings.Replace(host, "cp-console", "account-iam-console", 1)
 
-	// Always read encryption keys from bootstrap secret
-	var encryptionKeys string
-	var currentKeyNum string
-
-	if reconcileCtx.BootstrapData.EncryptionKeys != "" && reconcileCtx.BootstrapData.CurrentEncryptionKeyNum != "" {
-		encryptionKeys = reconcileCtx.BootstrapData.EncryptionKeys
-		currentKeyNum = reconcileCtx.BootstrapData.CurrentEncryptionKeyNum
-		klog.Infof("Using existing encryption keys from bootstrap secret")
-	} else {
-		klog.Warningf("Encryption keys not found in bootstrap secret, this might indicate a data migration issue")
-
-	}
-
 	reconcileCtx.IntegrationData = IntegrationConfig{
 		AccountName:             "default-account",
 		ServiceName:             "default-service",
@@ -564,8 +577,8 @@ func (r *AccountIAMReconciler) initMCSPData(reconcileCtx *ReconcileContext) erro
 		IMURL:                   utils.Concat("https://", host),
 		AccountIAMURL:           utils.Concat("https://", accountIAMHost),
 		AccountIAMConsoleURL:    utils.Concat("https://", accountIAMUIHost),
-		EncryptionKeys:          encryptionKeys,
-		CurrentEncryptionKeyNum: currentKeyNum,
+		EncryptionKeys:          "",
+		CurrentEncryptionKeyNum: "",
 	}
 	return nil
 }
@@ -719,6 +732,13 @@ func (r *AccountIAMReconciler) createDBBootstrapJob(ctx context.Context, instanc
 func (r *AccountIAMReconciler) prepareBootstrapData(ctx context.Context, reconcileCtx *ReconcileContext) error {
 	instance := reconcileCtx.Instance
 
+	// First, ensure encryption keys are available in integration data from bootstrap secret
+	if reconcileCtx.IntegrationData.EncryptionKeys == "" {
+		reconcileCtx.IntegrationData.EncryptionKeys = reconcileCtx.BootstrapData.EncryptionKeys
+		reconcileCtx.IntegrationData.CurrentEncryptionKeyNum = reconcileCtx.BootstrapData.CurrentEncryptionKeyNum
+		klog.V(2).Infof("Populated integration data with encryption keys from bootstrap secret")
+	}
+
 	// Get WLP client ID
 	wlpClientID, err := utils.GetSecretData(ctx, r.Client, resources.IMOIDCCrendential, instance.Namespace, resources.WLPClientID)
 	if err != nil {
@@ -739,15 +759,6 @@ func (r *AccountIAMReconciler) prepareBootstrapData(ctx context.Context, reconci
 
 	reconcileCtx.BootstrapData.GlobalAccountAud = base64.StdEncoding.EncodeToString([]byte(string(decodedGlobalAud) + "," + wlpClientID))
 	reconcileCtx.BootstrapData.DefaultAUDValue = base64.StdEncoding.EncodeToString([]byte(string(decodedDefaultAud) + "," + wlpClientID))
-
-	// Only encode the encryption keys if they're not already encoded
-	if !strings.HasPrefix(reconcileCtx.IntegrationData.EncryptionKeys, "eyJ") {
-		reconcileCtx.IntegrationData.EncryptionKeys = base64.StdEncoding.EncodeToString([]byte(reconcileCtx.IntegrationData.EncryptionKeys))
-	}
-
-	if !strings.HasPrefix(reconcileCtx.IntegrationData.CurrentEncryptionKeyNum, "eyJ") {
-		reconcileCtx.IntegrationData.CurrentEncryptionKeyNum = base64.StdEncoding.EncodeToString([]byte(reconcileCtx.IntegrationData.CurrentEncryptionKeyNum))
-	}
 
 	return nil
 }
