@@ -795,11 +795,11 @@ func (r *AccountIAMReconciler) createAccountIAMRoutes(ctx context.Context, recon
 
 // configureAndWaitForIssuer configures the issuer via CommonService and waits for it
 func (r *AccountIAMReconciler) configureAndWaitForIssuer(ctx context.Context, reconcileCtx *ReconcileContext) error {
-	// Ensure the CommonService CR is configured to set the desired OIDC issuer URL
-	klog.Infof("Ensuring OIDC issuer URL is configured in CommonService CR")
-	if err := r.configureIssuerViaCS(ctx, reconcileCtx.IntegrationData); err != nil {
-		klog.Errorf("Failed to configure OIDC issuer URL in CommonService CR: %v", err)
-		return fmt.Errorf("failed to configure issuer via CommonService CR: %w", err)
+	// Ensure the CommonService CR is configured with the desired authentication settings
+	klog.Infof("Ensuring authentication settings are configured in CommonService CR")
+	if err := r.configureAuthenticationViaCS(ctx, reconcileCtx.IntegrationData); err != nil {
+		klog.Errorf("Failed to configure authentication settings in CommonService CR: %v", err)
+		return fmt.Errorf("failed to configure authentication via CommonService CR: %w", err)
 	}
 
 	// Wait for the OIDC_ISSUER_URL to be updated in the platform-auth-idp ConfigMap
@@ -873,9 +873,9 @@ func (r *AccountIAMReconciler) injectData(ctx context.Context, instance *operato
 	return nil
 }
 
-func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context, integrationData IntegrationConfig) error {
-	// Update issuer in CommonService CR
-	klog.Infof("Updating issuer in CommonService CR")
+func (r *AccountIAMReconciler) configureAuthenticationViaCS(ctx context.Context, integrationData IntegrationConfig) error {
+	// Update authentication settings in CommonService CR
+	klog.Infof("Updating authentication settings in CommonService CR")
 	commonService := &unstructured.Unstructured{}
 	commonService.SetAPIVersion("operator.ibm.com/v3")
 	commonService.SetKind("CommonService")
@@ -919,7 +919,9 @@ func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context, integra
 			"spec": map[string]interface{}{
 				"authentication": map[string]interface{}{
 					"config": map[string]interface{}{
-						"oidcIssuerURL": integrationData.DefaultIDPValue,
+						"oidcIssuerURL":  integrationData.DefaultIDPValue,
+						"IAM-UM":         true,
+						"OSAUTH_ENABLED": false,
 					},
 				},
 			},
@@ -952,14 +954,29 @@ func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context, integra
 			needsUpdate = true
 		}
 
-		// Check if the value needs to be updated
-		currentURL, ok := config["oidcIssuerURL"].(string)
-		if !ok || currentURL != integrationData.DefaultIDPValue {
+		// Check and update oidcIssuerURL
+		if currentURL, ok := config["oidcIssuerURL"].(string); !ok || currentURL != integrationData.DefaultIDPValue {
 			klog.Infof("Updating oidcIssuerURL from %s to %s", currentURL, integrationData.DefaultIDPValue)
 			config["oidcIssuerURL"] = integrationData.DefaultIDPValue
 			needsUpdate = true
-		} else {
-			klog.Infof("CommonService CR %s/%s already has the desired oidcIssuerURL: %s", utils.GetOperatorNamespace(), "common-service", currentURL)
+		}
+
+		// Check and update IAM-UM
+		if currentIAMUM, ok := config["IAM-UM"].(bool); !ok || !currentIAMUM {
+			klog.Infof("Setting IAM-UM to true")
+			config["IAM-UM"] = true
+			needsUpdate = true
+		}
+
+		// Check and update OSAUTH_ENABLED
+		if currentOSAuth, ok := config["OSAUTH_ENABLED"].(bool); !ok || currentOSAuth {
+			klog.Infof("Setting OSAUTH_ENABLED to false")
+			config["OSAUTH_ENABLED"] = false
+			needsUpdate = true
+		}
+
+		if !needsUpdate {
+			klog.Infof("CommonService CR %s/%s already has the desired authentication configuration", utils.GetOperatorNamespace(), "common-service")
 		}
 
 		// Update the nested maps back up the chain
@@ -979,7 +996,7 @@ func (r *AccountIAMReconciler) configureIssuerViaCS(ctx context.Context, integra
 			klog.Errorf("Failed to update CommonService CR %s/%s: %v", utils.GetOperatorNamespace(), "common-service", err)
 			return err
 		}
-		klog.Infof("Successfully updated oidcIssuerURL in CommonService CR %s/%s", utils.GetOperatorNamespace(), "common-service")
+		klog.Infof("Successfully updated authentication configuration in CommonService CR %s/%s", utils.GetOperatorNamespace(), "common-service")
 	}
 	return nil
 }
