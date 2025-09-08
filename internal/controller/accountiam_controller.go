@@ -1131,37 +1131,33 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, reconcil
 	domain := strings.Join(parsing[1:], ".")
 	klog.Infof("domain: %s", domain)
 
-	// Get the API key
-	apiKey, err := utils.GetSecretData(ctx, r.Client, resources.IMAPISecret, instance.Namespace, resources.MCSPAPIKey)
+	// Use GetSecretsData to fetch all secrets concurrently
+	secrets := map[string]string{
+		"apiKey":        fmt.Sprintf("%s/%s", resources.IMAPISecret, resources.MCSPAPIKey),
+		"redisURLSSL":   fmt.Sprintf("%s/%s", resources.Rediscp, resources.RedisURLssl),
+		"redisPassword": fmt.Sprintf("%s/%s", resources.Rediscp, resources.RedisPassword),
+		"redisCACert":   fmt.Sprintf("%s/%s", resources.RedisCACert, resources.CAKey),
+	}
+
+	klog.Infof("Batch retrieving %d secrets for UI bootstrap data", len(secrets))
+	results, err := utils.GetSecretsData(ctx, r.Client, instance.Namespace, secrets)
 	if err != nil {
-		klog.Errorf("Failed to get secret %s in namespace %s: %v", resources.IMAPISecret, instance.Namespace, err)
+		klog.Errorf("Failed to batch retrieve secrets for UI bootstrap: %v", err)
 		return err
 	}
 
-	// Get the Redis URL SSL
-	redisURlssl, err := utils.GetSecretData(ctx, r.Client, resources.Rediscp, instance.Namespace, resources.RedisURLssl)
-	if err != nil {
-		klog.Errorf("Failed to get secret %s in namespace %s: %v", resources.Rediscp, instance.Namespace, err)
-		return err
-	}
+	// Extract individual values from batch results
+	apiKey := results["apiKey"]
+	redisURlssl := results["redisURLSSL"]
+	redisPassword := results["redisPassword"]
+	caCRT := results["redisCACert"]
+
 	redisHostname, redisPort, err := utils.GetRedisInfo(redisURlssl)
 	if err != nil {
-		fmt.Println("Error:", err)
+		klog.Errorf("Failed to parse Redis connection info: %v", err)
 		return err
 	}
 
-	redisPassword, err := utils.GetSecretData(ctx, r.Client, resources.Rediscp, instance.Namespace, resources.RedisPassword)
-	if err != nil {
-		klog.Errorf("Failed to get redis password from secret %s in namespace %s: %v", resources.Rediscp, instance.Namespace, err)
-		return err
-	}
-
-	// get Redis Certificate Authority
-	caCRT, err := utils.GetSecretData(ctx, r.Client, resources.RedisCACert, instance.Namespace, resources.CAKey)
-	if err != nil {
-		klog.Errorf("Failed to get ca.crt from secret %s in namespace %s", resources.CSCASecret, instance.Namespace)
-		return err
-	}
 	caCRT = base64.StdEncoding.EncodeToString([]byte(caCRT))
 
 	SessionSecret, err := utils.RandStrings(48)
@@ -1183,7 +1179,7 @@ func (r *AccountIAMReconciler) initUIBootstrapData(ctx context.Context, reconcil
 		InstanceManagementHostname: utils.Concat("account-iam-console-", instance.Namespace, ".", domain),
 		ClientID:                   string(decodedClientID),
 		ClientSecret:               string(decodedClientSecret),
-		IAMGlobalAPIKey:            string(apiKey),
+		IAMGlobalAPIKey:            apiKey,
 		RedisHost:                  redisHostname,
 		RedisPort:                  redisPort,
 		RedisPassword:              redisPassword,

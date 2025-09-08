@@ -28,6 +28,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/IBM/ibm-user-management-operator/internal/resources"
@@ -154,6 +155,47 @@ func GetSecretData(ctx context.Context, k8sClient client.Client, secretName, ns,
 	}
 
 	return string(data), nil
+}
+
+// GetSecretsData retrieves multiple secret data items concurrently
+func GetSecretsData(ctx context.Context, k8sClient client.Client, namespace string, secrets map[string]string) (map[string]string, error) {
+	results := make(map[string]string)
+	resultsMux := sync.Mutex{}
+
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(secrets))
+
+	for resultKey, secretKey := range secrets {
+		wg.Add(1)
+		go func(rKey, sKey string) {
+			defer wg.Done()
+
+			parts := strings.Split(sKey, "/")
+			if len(parts) != 2 {
+				errChan <- fmt.Errorf("invalid secret key format: %s", sKey)
+				return
+			}
+
+			data, err := GetSecretData(ctx, k8sClient, parts[0], namespace, parts[1])
+			if err != nil {
+				errChan <- fmt.Errorf("failed to get %s: %w", rKey, err)
+				return
+			}
+
+			resultsMux.Lock()
+			results[rKey] = data
+			resultsMux.Unlock()
+		}(resultKey, secretKey)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	if len(errChan) > 0 {
+		return nil, <-errChan
+	}
+
+	return results, nil
 }
 
 func CombineData(dataStructs ...interface{}) map[string]interface{} {
