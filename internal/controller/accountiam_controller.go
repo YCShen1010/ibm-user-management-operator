@@ -929,9 +929,8 @@ func (r *AccountIAMReconciler) configureAuthenticationViaCS(ctx context.Context,
 			"spec": map[string]interface{}{
 				"authentication": map[string]interface{}{
 					"config": map[string]interface{}{
-						"oidcIssuerURL":  integrationData.DefaultIDPValue,
-						"IAM-UM":         true,
-						"OSAUTH_ENABLED": false,
+						"oidcIssuerURL": integrationData.DefaultIDPValue,
+						"iamUm":         true,
 					},
 				},
 			},
@@ -971,17 +970,10 @@ func (r *AccountIAMReconciler) configureAuthenticationViaCS(ctx context.Context,
 			needsUpdate = true
 		}
 
-		// Check and update IAM-UM
-		if currentIAMUM, ok := config["IAM-UM"].(bool); !ok || !currentIAMUM {
-			klog.Infof("Setting IAM-UM to true")
-			config["IAM-UM"] = true
-			needsUpdate = true
-		}
-
-		// Check and update OSAUTH_ENABLED
-		if currentOSAuth, ok := config["OSAUTH_ENABLED"].(bool); !ok || currentOSAuth {
-			klog.Infof("Setting OSAUTH_ENABLED to false")
-			config["OSAUTH_ENABLED"] = false
+		// Check and update iamUm
+		if currentIAMUM, ok := config["iamUm"].(bool); !ok || !currentIAMUM {
+			klog.Infof("Setting iamUm to true")
+			config["iamUm"] = true
 			needsUpdate = true
 		}
 
