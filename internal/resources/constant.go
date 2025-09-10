@@ -65,22 +65,6 @@ const (
 	RedisCACert = "account-iam-ui-redis-ca-cert"
 	// RedisCert is the name of Redis service Certificate and secret
 	RedisSVCCert = "account-iam-ui-redis-svc-tls-cert"
-	// PhaseRunning is the Running status
-	PhaseRunning = "Running"
-	// StatusCompleted is the Completed status
-	StatusCompleted = "Completed"
-	// StatusReady is the Ready status
-	StatusReady = "Ready"
-	// StatusNotReady is the NotReady status
-	StatusNotReady = "NotReady"
-	// StatusNotFound is the NotFound status
-	StatusNotFound = "NotFound"
-	// StatusPending is the Pending status
-	StatusPending = "Pending"
-	// StatusFailed is the Failed status
-	StatusFailed = "Failed"
-	// StatusError is the Error status
-	StatusError = "Error"
 	// IMPackage is the name of IM Operator
 	IMPackage = "ibm-im-operator"
 	// EDBClusterKind is the kind of Cluster

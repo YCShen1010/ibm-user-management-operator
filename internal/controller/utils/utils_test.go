@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	operatorv1alpha1 "github.com/IBM/ibm-user-management-operator/api/v1alpha1"
 	"github.com/IBM/ibm-user-management-operator/internal/resources"
 	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
@@ -399,7 +400,7 @@ var _ = Describe("Resource Status Functions", func() {
 			status, ready := GetRedisResourceStatus(ctx, fakeClient, testNamespace)
 
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotFound))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotFound))
 			Expect(status.ObjectName).To(Equal(resources.Rediscp))
 			Expect(status.Kind).To(Equal(resources.RedisKind))
 		})
@@ -414,7 +415,7 @@ var _ = Describe("Resource Status Functions", func() {
 						"namespace": testNamespace,
 					},
 					"status": map[string]interface{}{
-						resources.RedisStatus: resources.StatusCompleted,
+						resources.RedisStatus: operatorv1alpha1.StatusCompleted,
 					},
 				},
 			}
@@ -428,7 +429,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetRedisResourceStatus(ctx, fakeClient, testNamespace)
 			Expect(ready).To(BeTrue())
-			Expect(status.Status).To(Equal(resources.StatusCompleted))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusCompleted))
 		})
 
 		It("should return not ready when Redis CR exists but not completed", func() {
@@ -455,7 +456,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetRedisResourceStatus(ctx, fakeClient, testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotReady))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotReady))
 		})
 
 		It("should handle Redis CR with partial status", func() {
@@ -482,7 +483,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetRedisResourceStatus(ctx, fakeClient, testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusError))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusError))
 		})
 
 		It("should handle Redis CR with empty status", func() {
@@ -506,7 +507,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetRedisResourceStatus(ctx, fakeClient, testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusError))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusError))
 		})
 	})
 
@@ -515,7 +516,7 @@ var _ = Describe("Resource Status Functions", func() {
 			status, ready := GetOperandRequestStatus(ctx, fakeClient, testNamespace)
 
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotFound))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotFound))
 			Expect(status.ObjectName).To(Equal(resources.UserMgmtOpreq))
 		})
 
@@ -526,7 +527,7 @@ var _ = Describe("Resource Status Functions", func() {
 					Namespace: testNamespace,
 				},
 				Status: odlm.OperandRequestStatus{
-					Phase: resources.PhaseRunning,
+					Phase: operatorv1alpha1.PhaseRunning,
 				},
 			}
 
@@ -534,7 +535,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetOperandRequestStatus(ctx, fakeClient, testNamespace)
 			Expect(ready).To(BeTrue())
-			Expect(status.Status).To(Equal(resources.PhaseRunning))
+			Expect(status.Status).To(Equal(operatorv1alpha1.PhaseRunning))
 		})
 
 		It("should handle OperandRequest with different phases", func() {
@@ -575,7 +576,7 @@ var _ = Describe("Resource Status Functions", func() {
 			status, ready := GetJobStatus(ctx, fakeClient, "test-job", testNamespace)
 
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotFound))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotFound))
 			Expect(status.ObjectName).To(Equal("test-job"))
 		})
 
@@ -599,7 +600,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetJobStatus(ctx, fakeClient, "test-job", testNamespace)
 			Expect(ready).To(BeTrue())
-			Expect(status.Status).To(Equal(resources.StatusCompleted))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusCompleted))
 		})
 
 		It("should return failed when Job has failed", func() {
@@ -622,7 +623,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetJobStatus(ctx, fakeClient, "test-job", testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusFailed))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusFailed))
 		})
 
 		It("should return running when Job is in progress", func() {
@@ -640,7 +641,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetJobStatus(ctx, fakeClient, "test-job", testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.PhaseRunning))
+			Expect(status.Status).To(Equal(operatorv1alpha1.PhaseRunning))
 		})
 	})
 
@@ -649,7 +650,7 @@ var _ = Describe("Resource Status Functions", func() {
 			status, ready := GetServiceStatus(ctx, fakeClient, "test-service", testNamespace)
 
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotFound))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotFound))
 		})
 
 		It("should return completed when Service has ClusterIP", func() {
@@ -668,7 +669,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetServiceStatus(ctx, fakeClient, "test-service", testNamespace)
 			Expect(ready).To(BeTrue())
-			Expect(status.Status).To(Equal(resources.StatusCompleted))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusCompleted))
 		})
 
 		It("should return completed for headless service", func() {
@@ -687,7 +688,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetServiceStatus(ctx, fakeClient, "test-service", testNamespace)
 			Expect(ready).To(BeTrue())
-			Expect(status.Status).To(Equal(resources.StatusCompleted))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusCompleted))
 		})
 
 		It("should return not ready when Service has no ClusterIP", func() {
@@ -706,7 +707,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetServiceStatus(ctx, fakeClient, "test-service", testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotReady))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotReady))
 		})
 	})
 
@@ -715,7 +716,7 @@ var _ = Describe("Resource Status Functions", func() {
 			status, ready := GetSecretStatus(ctx, fakeClient, "test-secret", testNamespace)
 
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotFound))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotFound))
 		})
 
 		It("should return completed when Secret exists", func() {
@@ -733,7 +734,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetSecretStatus(ctx, fakeClient, "test-secret", testNamespace)
 			Expect(ready).To(BeTrue())
-			Expect(status.Status).To(Equal(resources.StatusCompleted))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusCompleted))
 		})
 	})
 
@@ -742,7 +743,7 @@ var _ = Describe("Resource Status Functions", func() {
 			status, ready := GetRouteStatus(ctx, fakeClient, "test-route", testNamespace)
 
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotFound))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotFound))
 		})
 
 		It("should return completed when Route is admitted", func() {
@@ -769,7 +770,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetRouteStatus(ctx, fakeClient, "test-route", testNamespace)
 			Expect(ready).To(BeTrue())
-			Expect(status.Status).To(Equal(resources.StatusCompleted))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusCompleted))
 		})
 
 		It("should return not ready when Route has no ingress", func() {
@@ -787,7 +788,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetRouteStatus(ctx, fakeClient, "test-route", testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotReady))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotReady))
 		})
 
 		It("should return not ready when Route is not admitted", func() {
@@ -814,7 +815,7 @@ var _ = Describe("Resource Status Functions", func() {
 
 			status, ready := GetRouteStatus(ctx, fakeClient, "test-route", testNamespace)
 			Expect(ready).To(BeFalse())
-			Expect(status.Status).To(Equal(resources.StatusNotReady))
+			Expect(status.Status).To(Equal(operatorv1alpha1.StatusNotReady))
 		})
 	})
 })

@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	operatorv1alpha1 "github.com/IBM/ibm-user-management-operator/api/v1alpha1"
 	"github.com/IBM/ibm-user-management-operator/internal/resources"
 	odlm "github.com/IBM/operand-deployment-lifecycle-manager/v4/api/v1alpha1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -420,30 +421,30 @@ func GetRedisResourceStatus(ctx context.Context, k8sClient client.Client, namesp
 		Namespace:  namespace,
 		Kind:       resources.RedisKind,
 		APIVersion: resources.RedisAPIGroup + "/" + resources.Version,
-		Status:     resources.StatusNotReady,
+		Status:     operatorv1alpha1.StatusNotReady,
 	}
 
 	redisCR := NewUnstructured(resources.RedisAPIGroup, resources.RedisKind, resources.Version)
 	if err := k8sClient.Get(ctx, client.ObjectKey{Name: resources.Rediscp, Namespace: namespace}, redisCR); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			klog.Error(err, "Failed to get Redis CR")
-			redisResource.Status = resources.StatusError
+			redisResource.Status = operatorv1alpha1.StatusError
 			return redisResource, false
 		} else {
-			redisResource.Status = resources.StatusNotFound
+			redisResource.Status = operatorv1alpha1.StatusNotFound
 			return redisResource, false
 		}
 	}
 
 	status, found, err := unstructured.NestedString(redisCR.Object, "status", resources.RedisStatus)
 	if err != nil || !found {
-		redisResource.Status = resources.StatusError
+		redisResource.Status = operatorv1alpha1.StatusError
 		return redisResource, false
-	} else if status == resources.StatusCompleted {
-		redisResource.Status = resources.StatusCompleted
+	} else if status == operatorv1alpha1.StatusCompleted {
+		redisResource.Status = operatorv1alpha1.StatusCompleted
 		return redisResource, true
 	} else {
-		redisResource.Status = resources.StatusNotReady
+		redisResource.Status = operatorv1alpha1.StatusNotReady
 		return redisResource, false
 	}
 }
@@ -455,23 +456,23 @@ func GetOperandRequestStatus(ctx context.Context, k8sClient client.Client, names
 		Namespace:  namespace,
 		Kind:       resources.OpreqKind,
 		APIVersion: resources.OperatorIBMApiVersion,
-		Status:     resources.StatusNotReady,
+		Status:     operatorv1alpha1.StatusNotReady,
 	}
 
 	operandReq := &odlm.OperandRequest{}
 	if err := k8sClient.Get(ctx, client.ObjectKey{Name: resources.UserMgmtOpreq, Namespace: namespace}, operandReq); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			klog.Error(err, "Failed to get OperandRequest %s in namespace %s", resources.UserMgmtOpreq, namespace)
-			umOpreqResource.Status = resources.StatusError
+			umOpreqResource.Status = operatorv1alpha1.StatusError
 			return umOpreqResource, false
 		} else {
-			umOpreqResource.Status = resources.StatusNotFound
+			umOpreqResource.Status = operatorv1alpha1.StatusNotFound
 			return umOpreqResource, false
 		}
 	}
 
-	if operandReq.Status.Phase == resources.PhaseRunning {
-		umOpreqResource.Status = resources.PhaseRunning
+	if operandReq.Status.Phase == operatorv1alpha1.PhaseRunning {
+		umOpreqResource.Status = operatorv1alpha1.PhaseRunning
 		return umOpreqResource, true
 	} else {
 		umOpreqResource.Status = string(operandReq.Status.Phase)
@@ -486,34 +487,34 @@ func GetJobStatus(ctx context.Context, k8sClient client.Client, jobName, namespa
 		Namespace:  namespace,
 		Kind:       resources.JobKind,
 		APIVersion: resources.JobAPIGroup,
-		Status:     resources.StatusNotReady,
+		Status:     operatorv1alpha1.StatusNotReady,
 	}
 
 	job := &batchv1.Job{}
 	if err := k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, job); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			klog.Error(err, "Failed to get Job %s in namespace %s", jobName, namespace)
-			jobResource.Status = resources.StatusError
+			jobResource.Status = operatorv1alpha1.StatusError
 			return jobResource, false
 		} else {
-			jobResource.Status = resources.StatusNotFound
+			jobResource.Status = operatorv1alpha1.StatusNotFound
 			return jobResource, false
 		}
 	}
 
 	for _, condition := range job.Status.Conditions {
 		if condition.Type == batchv1.JobComplete && condition.Status == corev1.ConditionTrue {
-			jobResource.Status = resources.StatusCompleted
+			jobResource.Status = operatorv1alpha1.StatusCompleted
 			return jobResource, true
 		}
 		if condition.Type == batchv1.JobFailed && condition.Status == corev1.ConditionTrue {
-			jobResource.Status = resources.StatusFailed
+			jobResource.Status = operatorv1alpha1.StatusFailed
 			return jobResource, false
 		}
 	}
 
 	// Job is still running
-	jobResource.Status = resources.PhaseRunning
+	jobResource.Status = operatorv1alpha1.PhaseRunning
 	return jobResource, false
 }
 
@@ -524,17 +525,17 @@ func GetServiceStatus(ctx context.Context, k8sClient client.Client, serviceName,
 		Namespace:  namespace,
 		Kind:       resources.ServiceKind,
 		APIVersion: resources.Version,
-		Status:     resources.StatusNotReady,
+		Status:     operatorv1alpha1.StatusNotReady,
 	}
 
 	service := &corev1.Service{}
 	if err := k8sClient.Get(ctx, client.ObjectKey{Name: serviceName, Namespace: namespace}, service); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			klog.Error(err, "Failed to get Service %s in namespace %s", serviceName, namespace)
-			serviceResource.Status = resources.StatusError
+			serviceResource.Status = operatorv1alpha1.StatusError
 			return serviceResource, false
 		} else {
-			serviceResource.Status = resources.StatusNotFound
+			serviceResource.Status = operatorv1alpha1.StatusNotFound
 			return serviceResource, false
 		}
 	}
@@ -543,16 +544,16 @@ func GetServiceStatus(ctx context.Context, k8sClient client.Client, serviceName,
 	if service.Spec.ClusterIP == "" || service.Spec.ClusterIP == "None" {
 		// This is a headless service which is OK
 		if service.Spec.Type == "ClusterIP" && service.Spec.ClusterIP == "None" {
-			serviceResource.Status = resources.StatusCompleted
+			serviceResource.Status = operatorv1alpha1.StatusCompleted
 			return serviceResource, true
 		}
 
-		serviceResource.Status = resources.StatusNotReady
+		serviceResource.Status = operatorv1alpha1.StatusNotReady
 		return serviceResource, false
 	}
 
 	// Service exists with ClusterIP, consider it ready
-	serviceResource.Status = resources.StatusCompleted
+	serviceResource.Status = operatorv1alpha1.StatusCompleted
 	return serviceResource, true
 }
 
@@ -563,23 +564,23 @@ func GetSecretStatus(ctx context.Context, k8sClient client.Client, secretName, n
 		Namespace:  namespace,
 		Kind:       resources.SecretKind,
 		APIVersion: resources.Version,
-		Status:     resources.StatusNotReady,
+		Status:     operatorv1alpha1.StatusNotReady,
 	}
 
 	secret := &corev1.Secret{}
 	if err := k8sClient.Get(ctx, client.ObjectKey{Name: secretName, Namespace: namespace}, secret); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			klog.Error(err, "Failed to get Secret %s in namespace %s", secretName, namespace)
-			secretResource.Status = resources.StatusError
+			secretResource.Status = operatorv1alpha1.StatusError
 			return secretResource, false
 		} else {
-			secretResource.Status = resources.StatusNotFound
+			secretResource.Status = operatorv1alpha1.StatusNotFound
 			return secretResource, false
 		}
 	}
 
 	// Secret exists, consider it ready
-	secretResource.Status = resources.StatusCompleted
+	secretResource.Status = operatorv1alpha1.StatusCompleted
 	return secretResource, true
 }
 
@@ -590,24 +591,24 @@ func GetRouteStatus(ctx context.Context, k8sClient client.Client, routeName, nam
 		Namespace:  namespace,
 		Kind:       resources.RouteKind,
 		APIVersion: resources.RouteAPIGroup + "/" + resources.Version,
-		Status:     resources.StatusNotReady,
+		Status:     operatorv1alpha1.StatusNotReady,
 	}
 
 	route := &routev1.Route{}
 	if err := k8sClient.Get(ctx, client.ObjectKey{Name: routeName, Namespace: namespace}, route); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			klog.Error(err, "Failed to get Route %s in namespace %s", routeName, namespace)
-			routeResource.Status = resources.StatusError
+			routeResource.Status = operatorv1alpha1.StatusError
 			return routeResource, false
 		} else {
-			routeResource.Status = resources.StatusNotFound
+			routeResource.Status = operatorv1alpha1.StatusNotFound
 			return routeResource, false
 		}
 	}
 
 	// Check if the route has ingress
 	if len(route.Status.Ingress) == 0 {
-		routeResource.Status = resources.StatusNotReady
+		routeResource.Status = operatorv1alpha1.StatusNotReady
 		return routeResource, false
 	}
 
@@ -615,13 +616,13 @@ func GetRouteStatus(ctx context.Context, k8sClient client.Client, routeName, nam
 	for _, ingress := range route.Status.Ingress {
 		for _, condition := range ingress.Conditions {
 			if condition.Type == routev1.RouteAdmitted && condition.Status == corev1.ConditionTrue {
-				routeResource.Status = resources.StatusCompleted
+				routeResource.Status = operatorv1alpha1.StatusCompleted
 				return routeResource, true
 			}
 		}
 	}
 
-	routeResource.Status = resources.StatusNotReady
+	routeResource.Status = operatorv1alpha1.StatusNotReady
 	return routeResource, false
 }
 
@@ -640,9 +641,9 @@ func WaitForOperatorReady(ctx context.Context, k8sClient client.Client, opreqNam
 			return false, err
 		}
 
-		klog.Infof("Waiting for all operators to be %s...", resources.PhaseRunning)
+		klog.Infof("Waiting for all operators to be %s...", operatorv1alpha1.PhaseRunning)
 
-		if operandRequest.Status.Phase == resources.PhaseRunning {
+		if operandRequest.Status.Phase == operatorv1alpha1.PhaseRunning {
 			klog.Infof("All operators are running in namespace %s.", ns)
 			return true, nil
 		}
@@ -661,7 +662,7 @@ func WaitForOperandReady(ctx context.Context, k8sClient client.Client, opreqName
 
 		allReady := true
 		for _, service := range operandRequest.Status.Services {
-			if service.Status != resources.StatusReady {
+			if service.Status != operatorv1alpha1.StatusReady {
 				klog.Infof("Service %s in namespace %s is not Ready. Current status: %s", service.OperatorName, service.Namespace, service.Status)
 				allReady = false
 			}

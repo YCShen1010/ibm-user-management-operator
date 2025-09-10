@@ -47,6 +47,18 @@ spec:
           status:
             description: AccountIAMStatus defines the observed state of AccountIAM
             properties:
+              phase:
+                description: Phase represents the current phase of the AccountIAM
+                  lifecycle
+                enum:
+                - Initializing
+                - Creating
+                - Pending
+                - Running
+                - Ready
+                - Failed
+                - Error
+                type: string
               service:
                 description: Import the operandstatus from odlm
                 properties:
